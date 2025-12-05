@@ -12,6 +12,7 @@ interface PopUpAd {
   image_url?: string;
   cta_text?: string;
   cta_link?: string;
+  contract_address?: string;
   is_active: boolean;
   start_date?: string;
   end_date?: string;
@@ -30,6 +31,7 @@ export default function PopUpAdManager() {
     image_url: '',
     cta_text: '',
     cta_link: '',
+    contract_address: '',
     is_active: true,
     start_date: '',
     end_date: '',
@@ -141,6 +143,7 @@ export default function PopUpAdManager() {
       image_url: popUp.image_url || '',
       cta_text: popUp.cta_text || '',
       cta_link: popUp.cta_link || '',
+      contract_address: popUp.contract_address || '',
       is_active: popUp.is_active,
       start_date: popUp.start_date?.split('T')[0] || '',
       end_date: popUp.end_date?.split('T')[0] || '',
@@ -157,6 +160,7 @@ export default function PopUpAdManager() {
       image_url: '',
       cta_text: '',
       cta_link: '',
+      contract_address: '',
       is_active: true,
       start_date: '',
       end_date: '',
@@ -285,6 +289,20 @@ export default function PopUpAdManager() {
                   />
                 </div>
               )}
+            </div>
+
+            {/* Contract Address - Optional */}
+            <div>
+              <label className="block text-sm text-gray-400 mb-2 font-medium">
+                Contract Address (Optional)
+              </label>
+              <input
+                type="text"
+                value={formData.contract_address}
+                onChange={(e) => setFormData({ ...formData, contract_address: e.target.value })}
+                className="w-full bg-white/[0.02] border border-white/[0.05] text-white rounded-lg px-4 py-3 focus:outline-none focus:border-[#fb57ff]/30 transition-colors font-mono text-sm"
+                placeholder="Token contract address (leave empty if not needed)"
+              />
             </div>
 
             {/* CTA Fields */}

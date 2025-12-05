@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Copy, Check } from 'lucide-react';
 
 export default function PopUpAd() {
   const [popUpData, setPopUpData] = useState(null);
   const [isVisible, setIsVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -122,6 +123,37 @@ export default function PopUpAd() {
             <p className="text-gray-400 mb-6 leading-relaxed text-sm md:text-base">
               {popUpData.description}
             </p>
+          )}
+
+          {popUpData.contract_address && (
+            <div className="mb-6">
+              <p className="text-xs text-gray-500 mb-2">Contract Address</p>
+              <div className="flex items-center gap-2 bg-white/[0.03] border border-white/[0.08] rounded-lg p-3">
+                <span className="font-mono text-sm text-gray-300 flex-1">
+                  {popUpData.contract_address.slice(0, 4)}...{popUpData.contract_address.slice(-4)}
+                </span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(popUpData.contract_address);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/[0.05] hover:bg-white/[0.1] border border-white/[0.1] rounded-md transition-all text-xs font-medium"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="w-3.5 h-3.5 text-green-400" />
+                      <span className="text-green-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3.5 h-3.5 text-gray-400" />
+                      <span className="text-gray-400">Copy</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           )}
 
           {popUpData.cta_text && popUpData.cta_link && (

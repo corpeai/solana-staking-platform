@@ -393,7 +393,8 @@ export default function PoolCard(props: PoolCardProps) {
               console.error("Error fetching decimals:", e);
             }
           }
-          setUserStakedAmount(userStake.amount.toNumber() / Math.pow(10, actualDecimals));
+          const amountStr = userStake.amount.toString();
+          setUserStakedAmount(parseFloat(amountStr) / Math.pow(10, actualDecimals));
           setUserStakeTimestamp(userStake.lastStakeTimestamp?.toNumber() || 0);
           setStakeData(userStake);
         } else {

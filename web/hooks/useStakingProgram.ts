@@ -1396,8 +1396,7 @@ const claimUnclaimedTokens = async (tokenMint: string, poolId: number = 0) => {
         return apy;
       }
       
-      // For variable pools, calculate dynamic APR
-      // Use BigInt for large numbers
+      // For variable pools, calculate dynamic APR using BigInt for large numbers
       const rewardRatePerSecond = BigInt(project.rewardRatePerSecond?.toString() || '0');
       const totalStaked = BigInt(project.totalStaked?.toString() || '0');
 
@@ -1424,35 +1423,6 @@ const claimUnclaimedTokens = async (tokenMint: string, poolId: number = 0) => {
 
       console.log(`✅ Calculated APR: ${apr.toFixed(2)}%`);
 
-      return apr;
-      
-      console.log(`🔢 Calculation values:`, {
-        rewardRatePerSecond,
-        totalStaked,
-        SECONDS_PER_YEAR,
-      });
-      
-      // If no one has staked or no rewards, APR is 0
-      if (totalStaked === 0) {
-        console.log(`⚠️ Total staked is 0 - APR = 0`);
-        return 0;
-      }
-      
-      if (rewardRatePerSecond === 0) {
-        console.log(`⚠️ Reward rate per second is 0 - APR = 0`);
-        console.log(`   This means rewards were deposited but reward_rate_per_second wasn't updated!`);
-        return 0;
-      }
-      
-      // Calculate APR: (reward_rate_per_second * seconds_per_year * 100) / total_staked
-      const annualRewards = rewardRatePerSecond * SECONDS_PER_YEAR;
-      const apr = (annualRewards * 100) / totalStaked;
-      
-      console.log(`✅ Calculated APR: ${apr.toFixed(2)}%`, {
-        annualRewards,
-        calculation: `(${rewardRatePerSecond} * ${SECONDS_PER_YEAR} * 100) / ${totalStaked}`,
-      });
-      
       return apr;
     } catch (error) {
       console.error("❌ Error calculating APR:", error);

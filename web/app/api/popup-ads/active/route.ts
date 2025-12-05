@@ -40,6 +40,7 @@ export async function GET() {
       image_url: data.imageUrl,
       cta_text: data.ctaText,
       cta_link: data.ctaLink,
+      contract_address: data.contractAddress,
       display_frequency: data.displayFrequency,
     };
 

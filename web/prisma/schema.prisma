@@ -207,6 +207,7 @@ model PopUpAd {
   imageUrl          String?   @map("image_url")
   ctaText           String?   @map("cta_text")
   ctaLink           String?   @map("cta_link")
+  contractAddress   String?   @map("contract_address")
   isActive          Boolean   @default(true) @map("is_active")
   startDate         DateTime? @map("start_date")
   endDate           DateTime? @map("end_date")

@@ -158,7 +158,7 @@ export default function PoolCard(props: PoolCardProps) {
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
   const REFRESH_COOLDOWN = 3000; // 3 seconds between refreshes
   
-  const realtimeRewards = useRealtimeRewards(projectData, stakeData);
+  const realtimeRewards = useRealtimeRewards(projectData, stakeData, tokenDecimals);
 
   const [currentTime, setCurrentTime] = useState<number>(Math.floor(Date.now() / 1000));
 

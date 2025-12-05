@@ -4,6 +4,7 @@ import BN from 'bn.js';
 export function calculatePendingRewards(
   project: any,
   stake: any
+  decimals: number = 9
 ): number {
   try {
     // If user has no stake, no rewards
@@ -24,15 +25,15 @@ export function calculatePendingRewards(
 
     console.log("🔍 Calculation Input:", {
       rewardRatePerSecond: rewardRatePerSecond.toString(),
-      totalStaked_tokens: Number(totalStaked) / 1_000_000_000,
-      stakeAmount_tokens: Number(stakeAmount) / 1_000_000_000,
+      totalStaked_tokens: Number(totalStaked) / Math.pow(10, decimals),
+      stakeAmount_tokens: Number(stakeAmount) / Math.pow(10, decimals),
       timeSinceLastUpdate: currentTime - lastUpdateTime,
       currentTime: new Date().toISOString(),
     });
 
     // Calculate effective time (stop at pool end time)
     if (currentTime <= lastUpdateTime || totalStaked === 0n) {
-      return Number(rewardsPending) / 1_000_000_000;
+      return Number(rewardsPending) / Math.pow(10, decimals);
     }
 
     const timeDelta = currentTime - lastUpdateTime;
@@ -41,7 +42,7 @@ export function calculatePendingRewards(
       : timeDelta;
     
     if (effectiveTime <= 0) {
-      return Number(rewardsPending) / 1_000_000_000;
+      return Number(rewardsPending) / Math.pow(10, decimals);
     }
 
     // Formula: (stakeAmount × rewardRatePerSecond × effectiveTime) / totalStaked
@@ -59,16 +60,16 @@ export function calculatePendingRewards(
     
     // Total pending = previously pending + newly earned
     const totalPendingLamports = rewardsPending + earnedLamports;
-    const totalPending = Number(totalPendingLamports) / 1_000_000_000;
+    const totalPending = Number(totalPendingLamports) / Math.pow(10, decimals);
 
     console.log("🔍 Reward Calculation:", {
       effectiveTime,
       numerator: numerator.toString(),
       earnedLamports: earnedLamports.toString(),
-      earnedTokens: Number(earnedLamports) / 1_000_000_000,
-      rewardsPending_tokens: Number(rewardsPending) / 1_000_000_000,
+      earnedTokens: Number(earnedLamports) / Math.pow(10, decimals),
+      rewardsPending_tokens: Number(rewardsPending) / Math.pow(10, decimals),
       totalPending_tokens: totalPending,
-      perSecondRate: Number(earnedLamports) / effectiveTime / 1_000_000_000,
+      perSecondRate: Number(earnedLamports) / effectiveTime / Math.pow(10, decimals),
     });
     
     return totalPending;
@@ -90,6 +91,7 @@ export function formatRewards(rewards: number): string {
 export function useRealtimeRewards(
   project: any,
   stake: any
+  decimals: number = 9
 ): number {
   const [rewards, setRewards] = useState(0);
 
@@ -97,7 +99,7 @@ export function useRealtimeRewards(
     if (!project || !stake) return;
 
     const calculate = () => {
-      const pending = calculatePendingRewards(project, stake);
+      const pending = calculatePendingRewards(project, stake, decimals);
       setRewards(pending);
       console.log("🔄 UI Update:", { timestamp: new Date().toISOString(), pending });
     };

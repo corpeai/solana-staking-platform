@@ -17,7 +17,7 @@ export function calculatePendingRewards(
     // ✅ Use BigInt for large numbers to avoid precision loss
     const rewardRatePerSecond = BigInt(project.rewardRatePerSecond.toString());
     const totalStaked = BigInt(project.totalStaked.toString());
-    const lastUpdateTime = project.lastUpdateTime.toNumber();
+    const lastUpdateTime = stake.lastClaimTime?.toNumber() || stake.lastStakeTimestamp?.toNumber() || project.lastUpdateTime.toNumber();
     const poolEndTime = project.poolEndTime.toNumber();
     
     const stakeAmount = BigInt(stake.amount.toString());

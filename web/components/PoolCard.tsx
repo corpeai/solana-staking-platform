@@ -229,7 +229,8 @@ export default function PoolCard(props: PoolCardProps) {
         }
 
         // Get user's staked amount (in lamports)
-        const userStakedLamports = userStake.amount ? userStake.amount.toNumber() : 0;
+        const userStakedLamports = userStake.amount ? parseFloat(userStake.amount.toString()) : 0;
+
         
         if (userStakedLamports === 0) {
           console.log(`⚠️ [${name}] User has no stake`);
@@ -637,7 +638,7 @@ export default function PoolCard(props: PoolCardProps) {
           const project = await getProjectInfo(effectiveMintAddress!, poolId);
           
           if (userStake) {
-            setUserStakedAmount(userStake.amount.toNumber() / decimalsMultiplier);
+            setUserStakedAmount(parseFloat(userStake.amount.toString()) / decimalsMultiplier);
             setUserStakeTimestamp(userStake.lastStakeTimestamp?.toNumber() || 0);
             setStakeData(userStake);
           }
@@ -646,7 +647,7 @@ export default function PoolCard(props: PoolCardProps) {
           
           // ✅ Recalculate reflection balance with fresh data
           if (userStake && project && project.reflectionVault) {
-            const userStakedLamports = userStake.amount ? userStake.amount.toNumber() : 0;
+            const userStakedLamports = userStake.amount ? parseFloat(userStake.amount.toString()) : 0;
             
             if (userStakedLamports > 0) {
               const userReflectionPerTokenPaid = userStake.reflectionPerTokenPaid 
@@ -710,7 +711,7 @@ export default function PoolCard(props: PoolCardProps) {
           try {
             const userStake = await getUserStake(effectiveMintAddress!, poolId);
             if (userStake) {
-              setUserStakedAmount(userStake.amount.toNumber() / decimalsMultiplier);
+              setUserStakedAmount(parseFloat(userStake.amount.toString()) / decimalsMultiplier);
               setUserStakeTimestamp(userStake.lastStakeTimestamp?.toNumber() || 0);
               setStakeData(userStake);
             }
@@ -822,7 +823,7 @@ export default function PoolCard(props: PoolCardProps) {
       const project = await getProjectInfo(effectiveMintAddress, poolId);
       
       if (userStake) {
-        setUserStakedAmount(userStake.amount.toNumber() / decimalsMultiplier);
+        setUserStakedAmount(parseFloat(userStake.amount.toString()) / decimalsMultiplier);
         setUserStakeTimestamp(userStake.lastStakeTimestamp?.toNumber() || 0);
         setStakeData(userStake);
       }
@@ -831,7 +832,7 @@ export default function PoolCard(props: PoolCardProps) {
       
       // ✅ Manually recalculate reflection balance with fresh data
       if (userStake && project && project.reflectionVault) {
-        const userStakedLamports = userStake.amount ? userStake.amount.toNumber() : 0;
+        const userStakedLamports = userStake.amount ? parseFloat(userStake.amount.toString()) : 0;
         
         if (userStakedLamports > 0) {
           const userReflectionPerTokenPaid = userStake.reflectionPerTokenPaid 

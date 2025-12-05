@@ -374,7 +374,17 @@ export default function PoolCard(props: PoolCardProps) {
         const userStake = await getUserStake(effectiveMintAddress, poolId);
         
         if (userStake) {
-          setUserStakedAmount(userStake.amount.toNumber() / decimalsMultiplier);
+          // Fetch decimals directly to ensure accuracy
+          let actualDecimals = tokenDecimals;
+          if (effectiveMintAddress) {
+            try {
+              const mintInfo = await connection.getParsedAccountInfo(new PublicKey(effectiveMintAddress));
+              actualDecimals = (mintInfo.value?.data as any)?.parsed?.info?.decimals || 9;
+            } catch (e) {
+              console.error("Error fetching decimals:", e);
+            }
+          }
+          setUserStakedAmount(userStake.amount.toNumber() / Math.pow(10, actualDecimals));
           setUserStakeTimestamp(userStake.lastStakeTimestamp?.toNumber() || 0);
           setStakeData(userStake);
         } else {

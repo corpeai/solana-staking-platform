@@ -574,10 +574,10 @@ export default function PoolCard(props: PoolCardProps) {
 
       switch (openModal) {
         case "stake":
-          case "stake":
-            const stakeAmount = toTokenAmount(amount, tokenDecimals);
+          const stakeAmount = toTokenAmount(amount, tokenDecimals);
+          txSignature = await blockchainStake(effectiveMintAddress!, stakeAmount, poolId);
           
-          playSound('success'); // ✅ ADD THIS LINE
+          playSound('success');
           showSuccess(`✅ Staked ${amount.toFixed(4)} ${symbol}! TX: ${txSignature.slice(0, 8)}...`);
           break;
 

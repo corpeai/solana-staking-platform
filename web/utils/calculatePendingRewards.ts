@@ -3,7 +3,7 @@ import BN from 'bn.js';
 
 export function calculatePendingRewards(
   project: any,
-  stake: any
+  stake: any,
   decimals: number = 9
 ): number {
   try {
@@ -90,7 +90,7 @@ export function formatRewards(rewards: number): string {
 
 export function useRealtimeRewards(
   project: any,
-  stake: any
+  stake: any,
   decimals: number = 9
 ): number {
   const [rewards, setRewards] = useState(0);

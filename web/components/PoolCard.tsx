@@ -21,6 +21,15 @@ import {
   Repeat
 } from "lucide-react";
 
+// Helper function to safely convert decimal amounts to token units
+function toTokenAmount(amount: number, decimals: number): string {
+  const amountStr = amount.toString();
+  const [whole, fraction = ''] = amountStr.split('.');
+  const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
+  const combined = whole + paddedFraction;
+  return combined.replace(/^0+/, '') || '0';
+}
+
 const priceCache = new Map<string, {
   price: number | null;
   priceChange24h: number | null;
@@ -565,15 +574,15 @@ export default function PoolCard(props: PoolCardProps) {
 
       switch (openModal) {
         case "stake":
-          const stakeAmount = Math.floor(amount * Math.pow(10, tokenDecimals));
-          txSignature = await blockchainStake(effectiveMintAddress!, stakeAmount, poolId);
+          case "stake":
+            const stakeAmount = toTokenAmount(amount, tokenDecimals);
           
           playSound('success'); // ✅ ADD THIS LINE
           showSuccess(`✅ Staked ${amount.toFixed(4)} ${symbol}! TX: ${txSignature.slice(0, 8)}...`);
           break;
 
         case "unstake":
-          const unstakeAmount = Math.floor(amount * Math.pow(10, tokenDecimals));
+          const unstakeAmount = toTokenAmount(amount, tokenDecimals);
           txSignature = await blockchainUnstake(effectiveMintAddress!, poolId, unstakeAmount);
           
           playSound('success'); // ✅ ADD THIS LINE

@@ -49,14 +49,16 @@ async function getLiveRate(
 
     const rateMode = project.rateMode;
     const rateBpsPerYear = project.rateBpsPerYear?.toNumber ? project.rateBpsPerYear.toNumber() : Number(project.rateBpsPerYear);
-    const rewardRatePerSecond = project.rewardRatePerSecond?.toNumber ? project.rewardRatePerSecond.toNumber() : Number(project.rewardRatePerSecond);
-    const totalStaked = project.totalStaked?.toNumber ? project.totalStaked.toNumber() : Number(project.totalStaked);
+    
+    // Use BigInt for large numbers to avoid precision loss
+    const rewardRatePerSecondBN = project.rewardRatePerSecond;
+    const totalStakedBN = project.totalStaked;
 
     console.log(`📊 Pool ${tokenMint.slice(0,8)}...:${poolId} blockchain data:`, {
       rateMode,
       rateBpsPerYear,
-      rewardRatePerSecond,
-      totalStaked,
+      rewardRatePerSecond: rewardRatePerSecondBN?.toString(),
+      totalStaked: totalStakedBN?.toString(),
     });
 
     let rate: number;
@@ -67,13 +69,16 @@ async function getLiveRate(
       rate = rateBpsPerYear / 100;
       rateType = 'apy';
     } else {
-      // Variable pool - dynamic APR
-      if (totalStaked === 0 || rewardRatePerSecond === 0) {
+      // Variable pool - dynamic APR using BigInt for large numbers
+      const totalStaked = BigInt(totalStakedBN?.toString() || '0');
+      const rewardRatePerSecond = BigInt(rewardRatePerSecondBN?.toString() || '0');
+      
+      if (totalStaked === 0n || rewardRatePerSecond === 0n) {
         rate = 0;
       } else {
         // APR = (reward_rate_per_second * seconds_per_year * 100) / total_staked
-        const annualRewards = rewardRatePerSecond * SECONDS_PER_YEAR;
-        rate = (annualRewards * 100) / totalStaked;
+        const annualRewards = rewardRatePerSecond * BigInt(SECONDS_PER_YEAR);
+        rate = Number((annualRewards * 10000n) / totalStaked) / 100;
       }
       rateType = 'apr';
     }

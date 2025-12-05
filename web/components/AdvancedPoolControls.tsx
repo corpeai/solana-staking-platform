@@ -90,6 +90,10 @@ export default function AdvancedPoolControls({ pool, onUpdate }: { pool: Pool; o
     pool?.lockPeriod ? (typeof pool.lockPeriod === 'string' ? parseInt(pool.lockPeriod) : pool.lockPeriod) : 0
   );
   const [minStake, setMinStake] = useState(pool?.minStake || 10);
+  const [duration, setDuration] = useState(30);
+  const [reflectionEnabled, setReflectionEnabled] = useState(false);
+  const [reflectionType, setReflectionType] = useState<"self" | "external">("self");
+  const [externalReflectionMint, setExternalReflectionMint] = useState("");
   const [maxStake, setMaxStake] = useState(pool?.maxStake || 10000);
   const [platformFee, setPlatformFee] = useState(pool?.platformFeePercent || 2);
   const [flatFee, setFlatFee] = useState(pool?.flatSolFee || 0.005);

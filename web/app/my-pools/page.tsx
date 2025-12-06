@@ -21,8 +21,8 @@ import {
   EyeOff
 } from 'lucide-react';
 import { useAdminProgram } from '@/hooks/useAdminProgram';
-import { useToast } from '@/components/ToastProvider';
-import { useSoundEffects } from '@/hooks/useSoundEffects';
+import { useToast } from '@/components/ToastContainer';
+import { useSound } from '@/hooks/useSound';
 
 interface Pool {
   id: string;
@@ -56,7 +56,7 @@ export default function MyPoolsPage() {
   const { publicKey } = useWallet();
   const { connection } = useConnection();
   const { showSuccess, showError, showInfo } = useToast();
-  const { playSound } = useSoundEffects();
+  const { playSound } = useSound();
   const {
     depositRewards,
     getProjectInfo,

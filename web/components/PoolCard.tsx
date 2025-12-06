@@ -162,7 +162,7 @@ export default function PoolCard(props: PoolCardProps) {
   const [reflectionLoading, setReflectionLoading] = useState(false);
   const [tokenDecimals, setTokenDecimals] = useState<number>(9);
   const decimalsMultiplier = useMemo(() => Math.pow(10, tokenDecimals), [tokenDecimals]);
-
+  const [copied, setCopied] = useState(false);
 
   const [lastRefreshTime, setLastRefreshTime] = useState<number>(0);
   const REFRESH_COOLDOWN = 3000; // 3 seconds between refreshes
@@ -905,6 +905,12 @@ export default function PoolCard(props: PoolCardProps) {
     return `${mins}m`;
   };
 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   const rate = dynamicRate || apy || apr || 0;
   
   // Store data in localStorage so Dashboard can read it
@@ -1041,6 +1047,37 @@ export default function PoolCard(props: PoolCardProps) {
           </div>
         </div>
 
+        {/* Total Staked & Contract Address - NEW */}
+        <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm relative z-10">
+          <div className="bg-white/[0.02] p-2 rounded-lg border border-white/[0.05]">
+            <p className="text-gray-500 text-[9px] sm:text-[10px] md:text-xs mb-0.5 leading-tight">Total Staked</p>
+            <p className="font-semibold text-[11px] sm:text-xs md:text-sm leading-tight truncate" style={{ color: '#fb57ff' }}>
+              {totalStaked ? `${parseFloat(totalStaked).toLocaleString()} ${symbol}` : "0 " + symbol}
+            </p>
+          </div>
+          
+          <div className="bg-white/[0.02] p-2 rounded-lg border border-white/[0.05]">
+            <p className="text-gray-500 text-[9px] sm:text-[10px] md:text-xs mb-0.5 leading-tight">Contract</p>
+            <button
+              onClick={() => effectiveMintAddress && copyToClipboard(effectiveMintAddress)}
+              className="flex items-center gap-1 group"
+              title={effectiveMintAddress || "No address"}
+            >
+              <p className="font-mono text-[10px] sm:text-xs text-white truncate max-w-[80px] sm:max-w-[100px]">
+                {effectiveMintAddress ? `${effectiveMintAddress.slice(0, 4)}...${effectiveMintAddress.slice(-4)}` : "-"}
+              </p>
+              {copied ? (
+                <CheckCircle2 className="w-3 h-3 text-green-400 flex-shrink-0" />
+              ) : (
+                <svg className="w-3 h-3 text-gray-400 group-hover:text-white flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Your Stake & Lock Period - EXISTING */}
         <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm relative z-10">
           <div className="bg-white/[0.02] p-2 rounded-lg border border-white/[0.05]">
             <p className="text-gray-500 text-[9px] sm:text-[10px] md:text-xs mb-0.5 leading-tight">Your Stake</p>

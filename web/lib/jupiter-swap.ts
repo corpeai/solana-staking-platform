@@ -1,11 +1,16 @@
-// lib/jupiter-swap.ts - Updated for Jupiter Swap API v1 with Integrator Fees
+// lib/jupiter-swap.ts - Ultra API with Phantom warning fix
 
-import { Connection, PublicKey, VersionedTransaction } from "@solana/web3.js";
+import { 
+  Connection, 
+  PublicKey, 
+  VersionedTransaction,
+  TransactionMessage,
+  ComputeBudgetProgram,
+  AddressLookupTableAccount,
+} from "@solana/web3.js";
 
-// Get referral config from environment
 const REFERRAL_ACCOUNT = process.env.NEXT_PUBLIC_JUPITER_REFERRAL_ACCOUNT || "";
-const REFERRAL_FEE_BPS = parseInt(process.env.NEXT_PUBLIC_JUPITER_REFERRAL_FEE || "50"); // 50 bps = 0.5%
-const USE_JUPITER = process.env.NEXT_PUBLIC_USE_JUPITER !== "false"; // Can disable Jupiter if network issues
+const REFERRAL_FEE_BPS = parseInt(process.env.NEXT_PUBLIC_JUPITER_REFERRAL_FEE || "50");
 
 interface JupiterQuoteResponse {
   inputMint: string;
@@ -20,19 +25,6 @@ interface JupiterQuoteResponse {
   routePlan: any[];
 }
 
-interface UltraOrderResponse {
-  transaction: string; // base64 encoded transaction
-  requestId: string;
-  feeMint?: string; // Which token the fee will be collected in
-  feeBps?: number; // Total fee in basis points
-  lastValidBlockHeight: number;
-  prioritizationFeeLamports: number;
-}
-
-/**
- * Get quote from Jupiter Swap API v1
- * Uses Lite API for quotes, Ultra API for execution with referral fees
- */
 export async function getJupiterQuote(
   inputMint: string,
   outputMint: string,
@@ -42,15 +34,13 @@ export async function getJupiterQuote(
   treasuryWallet?: string
 ): Promise<JupiterQuoteResponse | null> {
   try {
-    console.log('🪐 Jupiter Swap API v1 Quote Request:', {
+    console.log('🪐 Jupiter Quote Request:', {
       inputMint,
       outputMint,
       amount,
       slippageBps,
-      referralFeeBps: REFERRAL_FEE_BPS,
     });
 
-    // Step 1: Get quote from regular Jupiter API for output amount estimation
     const quoteParams = new URLSearchParams({
       inputMint,
       outputMint,
@@ -58,49 +48,23 @@ export async function getJupiterQuote(
       slippageBps: slippageBps.toString(),
     });
 
-    console.log('📊 Fetching quote from Jupiter Swap API v1...');
-    
-    // Try Lite API first (faster, free)
-    let quoteUrl = `https://lite-api.jup.ag/swap/v1/quote?${quoteParams.toString()}`;
-    
-    console.log('🔗 Trying Lite API:', quoteUrl);
+    const quoteUrl = `https://lite-api.jup.ag/swap/v1/quote?${quoteParams.toString()}`;
     
     let quoteResponse = await fetch(quoteUrl, {
       method: 'GET',
-      headers: { 
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Accept': 'application/json' },
     });
 
-    // If Lite API fails, try Pro API
     if (!quoteResponse.ok) {
-      console.log('⚠️ Lite API failed, trying Pro API...');
-      quoteUrl = `https://api.jup.ag/swap/v1/quote?${quoteParams.toString()}`;
-      
-      quoteResponse = await fetch(quoteUrl, {
+      const quoteUrlPro = `https://api.jup.ag/swap/v1/quote?${quoteParams.toString()}`;
+      quoteResponse = await fetch(quoteUrlPro, {
         method: 'GET',
-        headers: { 
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Accept': 'application/json' },
       });
     }
 
     if (!quoteResponse.ok) {
-      const errorText = await quoteResponse.text();
-      console.error('❌ Quote API failed:', {
-        status: quoteResponse.status,
-        statusText: quoteResponse.statusText,
-        url: quoteUrl,
-        error: errorText,
-      });
-      
-      // Check if it's a network error
-      if (quoteResponse.status === 0 || !navigator.onLine) {
-        console.error('🌐 Network error - check internet connection or try VPN');
-      }
-      
+      console.error('❌ Quote failed:', quoteResponse.status);
       return null;
     }
 
@@ -112,14 +76,6 @@ export async function getJupiterQuote(
       priceImpact: quoteData.priceImpactPct,
     });
 
-    // Add referral fee info if configured
-    if (REFERRAL_ACCOUNT) {
-      console.log('💰 Referral fees will be collected:', {
-        referralAccount: REFERRAL_ACCOUNT,
-        referralFeeBps: REFERRAL_FEE_BPS,
-      });
-    }
-
     return {
       inputMint: quoteData.inputMint,
       inAmount: quoteData.inAmount,
@@ -128,10 +84,7 @@ export async function getJupiterQuote(
       otherAmountThreshold: quoteData.otherAmountThreshold,
       swapMode: quoteData.swapMode,
       slippageBps: quoteData.slippageBps,
-      platformFee: REFERRAL_ACCOUNT ? {
-        feeBps: REFERRAL_FEE_BPS,
-        feeMint: inputMint, // Fees usually taken from input token
-      } : null,
+      platformFee: REFERRAL_ACCOUNT ? { feeBps: REFERRAL_FEE_BPS } : null,
       priceImpactPct: quoteData.priceImpactPct,
       routePlan: quoteData.routePlan || [],
     };
@@ -142,9 +95,6 @@ export async function getJupiterQuote(
   }
 }
 
-/**
- * Execute swap using Jupiter Ultra API (supports referral fees)
- */
 export async function executeJupiterSwap(
   connection: Connection,
   userPublicKey: PublicKey,
@@ -157,7 +107,7 @@ export async function executeJupiterSwap(
   treasuryWallet?: string
 ): Promise<string> {
   try {
-    console.log('🔄 Jupiter Ultra Swap Execution:', {
+    console.log('🔄 Jupiter Ultra Swap:', {
       inputMint,
       outputMint,
       amount,
@@ -170,18 +120,14 @@ export async function executeJupiterSwap(
       inputMint,
       outputMint,
       amount: amount.toString(),
-      taker: userPublicKey.toString(), // REQUIRED for Ultra
+      taker: userPublicKey.toString(),
       slippageBps: slippageBps.toString(),
     });
 
-    // Add referral parameters - THIS IS THE CORRECT WAY FOR ULTRA
     if (REFERRAL_ACCOUNT) {
       params.append('referralAccount', REFERRAL_ACCOUNT);
       params.append('referralFee', REFERRAL_FEE_BPS.toString());
-      console.log('💰 Collecting fees via Ultra:', {
-        referralAccount: REFERRAL_ACCOUNT,
-        referralFeeBps: REFERRAL_FEE_BPS,
-      });
+      console.log('💰 Referral:', REFERRAL_ACCOUNT);
     }
 
     const orderUrl = `https://lite-api.jup.ag/ultra/v1/order?${params.toString()}`;
@@ -189,73 +135,113 @@ export async function executeJupiterSwap(
     console.log('📡 Fetching Ultra order...');
     const orderResponse = await fetch(orderUrl, {
       method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
+      headers: { 'Accept': 'application/json' },
     });
 
     if (!orderResponse.ok) {
       const errorText = await orderResponse.text();
       console.error('❌ Order failed:', orderResponse.status, errorText);
-      throw new Error(`Failed to get Ultra order: ${errorText}`);
+      throw new Error(`Failed to get order: ${errorText}`);
     }
 
-    const orderData: any = await orderResponse.json();
+    const orderData = await orderResponse.json();
     
-    console.log('📦 Full Ultra order response:');
-    console.log(JSON.stringify(orderData, null, 2));
-    
-    // Check for any error in the response (Jupiter returns errors in the response body)
     if (orderData.error) {
-      const errorMsg = orderData.error;
-      console.error('❌ Jupiter Ultra returned error:', errorMsg);
-      
-      // Check for gas/balance errors
-      if (errorMsg.includes('Top up') || 
-          errorMsg.includes('SOL for gas') || 
-          errorMsg.includes('insufficient') ||
-          errorMsg.includes('Insufficient')) {
-        // Pass through the actual error message from Jupiter
-        throw new Error(`Insufficient SOL: ${errorMsg}`);
-      }
-      
-      // Throw the actual error from Jupiter
-      throw new Error(`Jupiter: ${errorMsg}`);
+      console.error('❌ Jupiter error:', orderData.error);
+      throw new Error(orderData.error);
     }
     
+    if (!orderData.transaction) {
+      throw new Error('No transaction returned from Ultra API');
+    }
+
     console.log('✅ Order received:', {
       requestId: orderData.requestId,
       feeMint: orderData.feeMint,
       feeBps: orderData.feeBps,
-      hasTransaction: !!orderData.transaction,
-      transactionLength: orderData.transaction?.length || 0,
     });
 
-    // Check if transaction was returned
-    if (!orderData.transaction) {
-      console.error('❌ No transaction in Ultra order response');
-      throw new Error('Ultra API did not return a transaction. This may indicate an issue with the order or referral setup.');
-    }
+    // Step 2: Deserialize the transaction
+    const transactionBuf = Buffer.from(orderData.transaction, 'base64');
+    const originalTx = VersionedTransaction.deserialize(transactionBuf);
 
-    // Check if fees are being collected
-    if (REFERRAL_ACCOUNT) {
-      if (orderData.feeBps === REFERRAL_FEE_BPS) {
-        console.log('✅ Fees will be collected in', orderData.feeMint);
-      } else {
-        console.warn('⚠️ Fee collection may fail - token account not initialized for', orderData.feeMint);
+    // Step 3: Get address lookup tables
+    const addressLookupTableAccounts: AddressLookupTableAccount[] = [];
+    
+    if (originalTx.message.addressTableLookups.length > 0) {
+      const lookupTableAddresses = originalTx.message.addressTableLookups.map(
+        lookup => lookup.accountKey
+      );
+      
+      const lookupTableAccounts = await Promise.all(
+        lookupTableAddresses.map(async (address) => {
+          const account = await connection.getAddressLookupTable(address);
+          return account.value;
+        })
+      );
+      
+      for (const account of lookupTableAccounts) {
+        if (account) {
+          addressLookupTableAccounts.push(account);
+        }
       }
     }
 
-    // Step 2: Deserialize and sign transaction
-    console.log('✍️ Signing transaction...');
-    const transactionBuf = Buffer.from(orderData.transaction, 'base64');
-    const transaction = VersionedTransaction.deserialize(transactionBuf);
+    // Step 4: Decompile the message to get instructions
+    const decompiledMessage = TransactionMessage.decompile(
+      originalTx.message,
+      { addressLookupTableAccounts }
+    );
 
-    const signedTransaction = await signTransaction(transaction);
+    // Step 5: Check if compute budget instructions already exist
+    const computeBudgetProgramId = ComputeBudgetProgram.programId.toString();
+    const hasComputeBudget = decompiledMessage.instructions.some(
+      ix => ix.programId.toString() === computeBudgetProgramId
+    );
+
+    // Step 6: Build new instructions with compute budget at front
+    let newInstructions = [...decompiledMessage.instructions];
+    
+    if (!hasComputeBudget) {
+      console.log('➕ Adding compute budget instructions...');
+      
+      const computeUnitLimit = ComputeBudgetProgram.setComputeUnitLimit({
+        units: 400000,
+      });
+      
+      const computeUnitPrice = ComputeBudgetProgram.setComputeUnitPrice({
+        microLamports: 50000,
+      });
+      
+      // Prepend compute budget instructions
+      newInstructions = [computeUnitLimit, computeUnitPrice, ...newInstructions];
+    } else {
+      console.log('✅ Compute budget already present');
+    }
+
+    // Step 7: Get fresh blockhash
+    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('finalized');
+
+    // Step 8: Create new transaction message with feePayer explicitly first
+    const newMessage = new TransactionMessage({
+      payerKey: userPublicKey,
+      recentBlockhash: blockhash,
+      instructions: newInstructions,
+    });
+
+    // Step 9: Compile to versioned transaction
+    const newTransaction = new VersionedTransaction(
+      newMessage.compileToV0Message(addressLookupTableAccounts)
+    );
+
+    console.log('✍️ Requesting signature...');
+    
+    // Step 10: Sign
+    const signedTransaction = await signTransaction(newTransaction);
     const signedTransactionBase64 = Buffer.from(signedTransaction.serialize()).toString('base64');
 
-    // Step 3: Execute via Ultra API
-    console.log('📤 Executing swap via Ultra...');
+    // Step 11: Execute via Ultra API
+    console.log('📤 Executing via Ultra...');
     const executeResponse = await fetch('https://lite-api.jup.ag/ultra/v1/execute', {
       method: 'POST',
       headers: {
@@ -271,14 +257,35 @@ export async function executeJupiterSwap(
     if (!executeResponse.ok) {
       const errorText = await executeResponse.text();
       console.error('❌ Execute failed:', executeResponse.status, errorText);
-      throw new Error(`Failed to execute swap: ${errorText}`);
+      
+      // Fallback: Send directly to RPC
+      console.log('🔄 Trying direct RPC submission...');
+      const rawTransaction = signedTransaction.serialize();
+      
+      const txid = await connection.sendRawTransaction(rawTransaction, {
+        skipPreflight: false,
+        preflightCommitment: 'confirmed',
+        maxRetries: 3,
+      });
+
+      console.log('✅ Transaction sent via RPC:', txid);
+      
+      await connection.confirmTransaction({
+        signature: txid,
+        blockhash,
+        lastValidBlockHeight,
+      }, 'confirmed');
+
+      return txid;
     }
 
     const executeData = await executeResponse.json();
 
     if (executeData.status === "Success" && executeData.signature) {
-      console.log('✅ Swap executed successfully via Ultra!');
-      console.log('🔗 Transaction:', executeData.signature);
+      console.log('✅ Swap successful:', executeData.signature);
+      return executeData.signature;
+    } else if (executeData.signature) {
+      console.log('⚠️ Swap completed with signature:', executeData.signature);
       return executeData.signature;
     } else {
       console.error('❌ Swap failed:', executeData);
@@ -286,7 +293,12 @@ export async function executeJupiterSwap(
     }
 
   } catch (error: any) {
-    console.error("❌ Jupiter Ultra swap error:", error);
+    console.error("❌ Jupiter swap error:", error);
+    
+    if (error.message?.includes('User rejected') || error.message?.includes('rejected')) {
+      throw new Error('User rejected the transaction');
+    }
+    
     throw error;
   }
 }

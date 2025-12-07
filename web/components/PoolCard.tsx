@@ -347,87 +347,111 @@ export default function PoolCard(props: PoolCardProps) {
     };
   }, [amount, platformFeePercent, flatSolFee]);
 
-  // CONSOLIDATED + RATE LIMITED: Fetch ALL data with global rate limiting
+  // ✅ PUBLIC DATA: Fetch pool info WITHOUT wallet (anyone can see APY, TVL, etc.)
   useEffect(() => {
-    if (!connected || !effectiveMintAddress) {
-      return;
-    }
+    if (!effectiveMintAddress) return;
 
-    const fetchAllData = async () => {
+    const fetchPublicData = async () => {
       await waitForRpcSlot();
       
       try {
-        // 1. Fetch dynamic rate (ONCE, not repeated)
+        // 1. Fetch dynamic rate (public read - no wallet needed)
         if (dynamicRate === null) {
           try {
             await new Promise(resolve => setTimeout(resolve, 1000));
             const result = await getPoolRate(effectiveMintAddress, poolId);
-            setDynamicRate(result.rate);
-          } catch (error) {
-            // Silent fail
-          }
-        }
-
-        // 2. Fetch SOL balance
-        if (publicKey) {
-          try {
-            await waitForRpcSlot();
-            const balance = await connection.getBalance(publicKey);
-            setSolBalance(balance / LAMPORTS_PER_SOL);
-          } catch (error) {
-            // Silent fail
-          }
-        }
-
-        // 3. Fetch user stake
-        await waitForRpcSlot();
-        const userStake = await getUserStake(effectiveMintAddress, poolId);
-        
-        if (userStake) {
-          // Fetch decimals directly to ensure accuracy
-          let actualDecimals = tokenDecimals;
-          if (effectiveMintAddress) {
-            try {
-              const mintInfo = await connection.getParsedAccountInfo(new PublicKey(effectiveMintAddress));
-              actualDecimals = (mintInfo.value?.data as any)?.parsed?.info?.decimals || 9;
-            } catch (e) {
-              console.error("Error fetching decimals:", e);
+            if (result?.rate !== undefined) {
+              setDynamicRate(result.rate);
             }
+          } catch (error) {
+            // Silent fail - will use database APY/APR value
           }
-          const amountStr = userStake.amount.toString();
-          setUserStakedAmount(parseFloat(amountStr) / Math.pow(10, actualDecimals));
-          setUserStakeTimestamp(userStake.lastStakeTimestamp?.toNumber() || 0);
-          setStakeData(userStake);
-        } else {
-          setStakeData(null);
-          setUserStakedAmount(0);
-          setUserStakeTimestamp(0);
         }
 
-        // 4. Fetch project info
+        // 2. Fetch project info for TVL display (public read - no wallet needed)
         await waitForRpcSlot();
-        const project = await getProjectInfo(effectiveMintAddress, poolId);
-        
-        if (project) {
-          setProjectData(project);
-        } else {
-          setProjectData(null);
+        try {
+          const project = await getProjectInfo(effectiveMintAddress, poolId);
+          if (project) {
+            setProjectData(project);
+          }
+        } catch (error) {
+          // Silent fail
         }
       } catch (error) {
         // Silent fail
       }
     };
 
-    fetchAllData();
+    fetchPublicData();
     
-    const randomInterval = 120000 + Math.random() * 30000;
-    const interval = setInterval(fetchAllData, randomInterval);
-    
-    return () => {
-      clearInterval(interval);
+    // Refresh every 2 minutes
+    const interval = setInterval(fetchPublicData, 120000);
+    return () => clearInterval(interval);
+  }, [effectiveMintAddress, poolId]); // ✅ NO connected/publicKey dependency
+
+  // ✅ USER DATA: Fetch user-specific data (requires wallet connection)
+  useEffect(() => {
+    if (!connected || !publicKey || !effectiveMintAddress) {
+      // Reset user data when wallet disconnected
+      setUserStakedAmount(0);
+      setUserStakeTimestamp(0);
+      setStakeData(null);
+      setSolBalance(0);
+      return;
+    }
+
+    const fetchUserData = async () => {
+      await waitForRpcSlot();
+      
+      try {
+        // 1. Fetch SOL balance
+        try {
+          const balance = await connection.getBalance(publicKey);
+          setSolBalance(balance / LAMPORTS_PER_SOL);
+        } catch (error) {
+          // Silent fail
+        }
+
+        // 2. Fetch user stake
+        await waitForRpcSlot();
+        try {
+          const userStake = await getUserStake(effectiveMintAddress, poolId);
+          
+          if (userStake) {
+            // Fetch decimals directly to ensure accuracy
+            let actualDecimals = tokenDecimals;
+            try {
+              const mintInfo = await connection.getParsedAccountInfo(new PublicKey(effectiveMintAddress));
+              actualDecimals = (mintInfo.value?.data as any)?.parsed?.info?.decimals || 9;
+            } catch (e) {
+              console.error("Error fetching decimals:", e);
+            }
+            const amountStr = userStake.amount.toString();
+            setUserStakedAmount(parseFloat(amountStr) / Math.pow(10, actualDecimals));
+            setUserStakeTimestamp(userStake.lastStakeTimestamp?.toNumber() || 0);
+            setStakeData(userStake);
+          } else {
+            setStakeData(null);
+            setUserStakedAmount(0);
+            setUserStakeTimestamp(0);
+          }
+        } catch (error) {
+          // Silent fail
+        }
+      } catch (error) {
+        // Silent fail
+      }
     };
+
+    fetchUserData();
+    
+    // Refresh every 2 minutes with jitter
+    const randomInterval = 120000 + Math.random() * 30000;
+    const interval = setInterval(fetchUserData, randomInterval);
+    return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, effectiveMintAddress, poolId]);
+  }, [connected, publicKey, effectiveMintAddress, poolId, tokenDecimals]);
 
   // Price fetching
   useEffect(() => {

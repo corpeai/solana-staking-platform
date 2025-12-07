@@ -4,7 +4,6 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { PublicKey } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
-import { createClient } from '@supabase/supabase-js';
 import { RefreshCw, Trophy, Twitter, Wallet, Star, MessageCircle, Send, Edit2, Check, X, Lock } from 'lucide-react';
 import bs58 from 'bs58';
 
@@ -12,11 +11,6 @@ const SPT_MINT = new PublicKey('6uUU2z5GBasaxnkcqiQVHa2SXL68mAXDsq1zYN5Qxrm7');
 const MIN_HOLDING = 10_000_000;
 const SPT_DECIMALS = 9;
 const REWARD_WALLET = new PublicKey('JutoRW8bYVaPpZQXUYouEUaMN24u6PxzLryCLuJZsL9');
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
 
 interface UserData {
   wallet: string;
@@ -317,19 +311,6 @@ const WhaleClub: React.FC = () => {
       fetchMessages();
     }
   }, [activeTab, isQualified, chatAuth]);
-
-  useEffect(() => {
-    if (!isQualified || activeTab !== 'chat' || !chatAuth) return;
-    const channel = supabase
-      .channel('whale_chat')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whale_club_messages' }, (payload) => {
-        // Note: realtime messages are encrypted, we'd need to decrypt them
-        // For now, just refetch to get decrypted version
-        fetchMessages();
-      })
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [isQualified, activeTab, chatAuth]);
 
   useEffect(() => { scrollToBottom(); }, [messages]);
 

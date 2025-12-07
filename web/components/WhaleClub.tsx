@@ -49,23 +49,47 @@ const WhaleClub: React.FC = () => {
     quotes: 0,
   });
 
-  // Check token balance
-  const checkTokenBalance = useCallback(async () => {
+  // Check token balance (Token-2022 compatible)
+    const checkTokenBalance = useCallback(async () => {
     if (!publicKey || !connection) return;
     
     try {
-      const ata = await getAssociatedTokenAddress(SPT_MINT, publicKey);
-      const account = await getAccount(connection, ata);
-      const balance = Number(account.amount) / Math.pow(10, SPT_DECIMALS);
-      setTokenBalance(balance);
-      setIsQualified(balance >= MIN_HOLDING);
+        // Token-2022 Program ID
+        const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
+        
+        // Get ATA for Token-2022
+        const ata = await getAssociatedTokenAddress(
+        SPT_MINT, 
+        publicKey,
+        false,
+        TOKEN_2022_PROGRAM_ID
+        );
+        
+        // Fetch account info directly
+        const accountInfo = await connection.getAccountInfo(ata);
+        
+        if (accountInfo) {
+        // Parse Token-2022 account data (amount is at bytes 64-72)
+        const data = accountInfo.data;
+        const amountBytes = data.slice(64, 72);
+        const amount = Number(new DataView(amountBytes.buffer, amountBytes.byteOffset, 8).getBigUint64(0, true));
+        const balance = amount / Math.pow(10, SPT_DECIMALS);
+        
+        console.log('SPT Balance:', balance);
+        setTokenBalance(balance);
+        setIsQualified(balance >= MIN_HOLDING);
+        } else {
+        console.log('No SPT token account found');
+        setTokenBalance(0);
+        setIsQualified(false);
+        }
     } catch (error) {
-      console.log('No token account found or error:', error);
-      setTokenBalance(0);
-      setIsQualified(false);
+        console.error('Error checking token balance:', error);
+        setTokenBalance(0);
+        setIsQualified(false);
     }
     setIsLoading(false);
-  }, [publicKey, connection]);
+    }, [publicKey, connection]);
 
   // Fetch reward pool balance
   const fetchRewardPoolBalance = useCallback(async () => {

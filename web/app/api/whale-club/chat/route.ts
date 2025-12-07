@@ -1,20 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import nacl from 'tweetnacl';
+import bs58 from 'bs58';
+
+export const dynamic = 'force-dynamic';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_KEY!
 );
 
-async function verifySignature(wallet: string, message: string, signature: string): Promise<boolean> {
+function verifySignature(wallet: string, message: string, signature: string): boolean {
   try {
-    const nacl = (await import('tweetnacl')).default;
-    const bs58 = (await import('bs58')).default;
-    
     const messageBytes = new TextEncoder().encode(message);
     const signatureBytes = bs58.decode(signature);
     const publicKeyBytes = bs58.decode(wallet);
-    
     return nacl.sign.detached.verify(messageBytes, signatureBytes, publicKeyBytes);
   } catch (error) {
     console.error('Signature verification error:', error);
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
   }
 
   const message = `WhaleChat:${wallet}:${timestamp}`;
-  if (!(await verifySignature(wallet, message, signature))) {
+  if (!verifySignature(wallet, message, signature)) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
   }
 
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     const signMessage = `WhaleChat:${wallet}:${timestamp}`;
-    if (!(await verifySignature(wallet, signMessage, signature))) {
+    if (!verifySignature(wallet, signMessage, signature)) {
       return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 

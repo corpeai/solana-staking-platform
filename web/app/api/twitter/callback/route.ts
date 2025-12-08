@@ -28,29 +28,49 @@ export async function GET(request: NextRequest) {
       Buffer.from(state, "base64url").toString()
     );
 
-    // Try with credentials in body instead of header
+    const clientId = process.env.TWITTER_CLIENT_ID;
+    const clientSecret = process.env.TWITTER_CLIENT_SECRET;
+    const redirectUri = process.env.TWITTER_REDIRECT_URI || `${APP_URL}/api/twitter/callback`;
+
+    console.log('=== TWITTER DEBUG ===');
+    console.log('Client ID:', clientId);
+    console.log('Client Secret length:', clientSecret?.length);
+    console.log('Client Secret first 10:', clientSecret?.slice(0, 10));
+    console.log('Client Secret last 5:', clientSecret?.slice(-5));
+    console.log('Redirect URI:', redirectUri);
+    console.log('Code length:', code.length);
+    console.log('Code verifier:', codeVerifier);
+
+    // Try with Basic auth header
+    const credentials = `${clientId}:${clientSecret}`;
+    const base64Credentials = Buffer.from(credentials).toString('base64');
+    
+    console.log('Credentials string length:', credentials.length);
+    console.log('Base64 auth:', base64Credentials.slice(0, 20) + '...');
+
     const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": `Basic ${base64Credentials}`,
       },
       body: new URLSearchParams({
         code,
         grant_type: "authorization_code",
-        redirect_uri: process.env.TWITTER_REDIRECT_URI || `${APP_URL}/api/twitter/callback`,
+        redirect_uri: redirectUri,
         code_verifier: codeVerifier,
-        client_id: process.env.TWITTER_CLIENT_ID!,
-        client_secret: process.env.TWITTER_CLIENT_SECRET!,
       }),
     });
 
+    const responseText = await tokenResponse.text();
+    console.log('Token response status:', tokenResponse.status);
+    console.log('Token response:', responseText);
+
     if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.text();
-      console.error("Token exchange failed:", errorData);
       return NextResponse.redirect(`${APP_URL}/whale-club?error=token_exchange_failed`);
     }
 
-    const tokens = await tokenResponse.json();
+    const tokens = JSON.parse(responseText);
 
     const userResponse = await fetch("https://api.twitter.com/2/users/me", {
       headers: {

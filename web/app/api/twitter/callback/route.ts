@@ -28,19 +28,19 @@ export async function GET(request: NextRequest) {
       Buffer.from(state, "base64url").toString()
     );
 
+    // Try with credentials in body instead of header
     const tokenResponse = await fetch("https://api.twitter.com/2/oauth2/token", {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        Authorization: `Basic ${Buffer.from(
-          `${process.env.TWITTER_CLIENT_ID}:${process.env.TWITTER_CLIENT_SECRET}`
-        ).toString("base64")}`,
       },
       body: new URLSearchParams({
         code,
         grant_type: "authorization_code",
         redirect_uri: process.env.TWITTER_REDIRECT_URI || `${APP_URL}/api/twitter/callback`,
         code_verifier: codeVerifier,
+        client_id: process.env.TWITTER_CLIENT_ID!,
+        client_secret: process.env.TWITTER_CLIENT_SECRET!,
       }),
     });
 

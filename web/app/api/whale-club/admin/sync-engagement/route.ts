@@ -165,12 +165,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Sync failed' }, { status: 500 });
   }
 }
-```
-
-**Step 4: You need a Twitter Bearer Token**
-
-Go to Twitter Developer Portal → your app → Keys and Tokens → Generate Bearer Token
-
-Add to Vercel:
-```
-TWITTER_BEARER_TOKEN=AAAAAAAAAAAAAAAAAAAAAA...

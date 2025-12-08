@@ -33,15 +33,18 @@ async function refreshTwitterToken(refreshToken: string): Promise<string | null>
     const clientId = process.env.TWITTER_CLIENT_ID;
     const clientSecret = process.env.TWITTER_CLIENT_SECRET;
     
+    // Create Basic auth header
+    const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    
     const response = await fetch('https://api.twitter.com/2/oauth2/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
+        'Authorization': `Basic ${credentials}`,
       },
       body: new URLSearchParams({
         grant_type: 'refresh_token',
         refresh_token: refreshToken,
-        client_id: clientId!,
       }),
     });
 

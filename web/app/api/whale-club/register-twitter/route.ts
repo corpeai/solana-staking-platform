@@ -11,7 +11,7 @@ async function supabaseGet(table: string, query: string) {
   return response.json();
 }
 
-async function supabaseUpsert(table: string, data: any) {
+async function supabaseInsert(table: string, data: any) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_KEY;
   const response = await fetch(`${url}/rest/v1/${table}`, {
@@ -20,7 +20,23 @@ async function supabaseUpsert(table: string, data: any) {
       'apikey': key!,
       'Authorization': `Bearer ${key}`,
       'Content-Type': 'application/json',
-      'Prefer': 'resolution=merge-duplicates,return=representation',
+      'Prefer': 'return=representation',
+    },
+    body: JSON.stringify(data),
+  });
+  return response.json();
+}
+
+async function supabaseUpdate(table: string, query: string, data: any) {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  const response = await fetch(`${url}/rest/v1/${table}?${query}`, {
+    method: 'PATCH',
+    headers: {
+      'apikey': key!,
+      'Authorization': `Bearer ${key}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
     },
     body: JSON.stringify(data),
   });
@@ -52,12 +68,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Username already registered to another wallet' }, { status: 400 });
     }
 
-    // Upsert user with twitter username
-    await supabaseUpsert('whale_club_users', {
-      wallet_address: wallet,
-      twitter_username: cleanUsername,
-      updated_at: new Date().toISOString(),
-    });
+    // Check if user exists
+    const userExists = await supabaseGet(
+      'whale_club_users',
+      `wallet_address=eq.${wallet}&select=wallet_address`
+    );
+
+    if (userExists && userExists.length > 0) {
+      // Update existing user
+      await supabaseUpdate('whale_club_users', `wallet_address=eq.${wallet}`, {
+        twitter_username: cleanUsername,
+        updated_at: new Date().toISOString(),
+      });
+    } else {
+      // Insert new user
+      await supabaseInsert('whale_club_users', {
+        wallet_address: wallet,
+        twitter_username: cleanUsername,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    }
 
     return NextResponse.json({
       success: true,

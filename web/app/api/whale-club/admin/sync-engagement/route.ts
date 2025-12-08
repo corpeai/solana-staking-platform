@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const ADMIN_WALLET = 'ecfvkqWdJiYJRyUtWvuYpPWP5faf9GBcA1K6TaDW7wS';
-const STAKEPOINT_USER_ID = '1986447519216508934';
 
 async function supabaseGet(table: string, query: string) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -33,7 +32,6 @@ export async function POST(request: NextRequest) {
   try {
     const { wallet, tweetIds } = await request.json();
 
-    // Verify admin
     if (wallet !== ADMIN_WALLET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
@@ -47,52 +45,68 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Twitter bearer token not configured' }, { status: 500 });
     }
 
-    // Get all registered users
+    // Get StakePoint OAuth token for likes endpoint
+    const stakePointUser = await supabaseGet(
+      'whale_club_users',
+      `twitter_username=eq.stakepointapp&select=twitter_access_token`
+    );
+    const userAccessToken = stakePointUser?.[0]?.twitter_access_token;
+    console.log('StakePoint OAuth token found:', !!userAccessToken);
+
     const users = await supabaseGet('whale_club_users', 'twitter_username=not.is.null&select=wallet_address,twitter_username');
     
     if (!users || users.length === 0) {
       return NextResponse.json({ error: 'No users with Twitter registered' }, { status: 400 });
     }
 
-    // Create username lookup map (lowercase)
     const usernameToWallet: Record<string, string> = {};
     for (const user of users) {
-      usernameToWallet[user.twitter_username.toLowerCase()] = user.wallet_address;
+      if (user.twitter_username.toLowerCase() !== 'stakepointapp') {
+        usernameToWallet[user.twitter_username.toLowerCase()] = user.wallet_address;
+      }
     }
+    console.log('Registered users:', Object.keys(usernameToWallet));
 
     const results: Record<string, { likes: number; retweets: number }> = {};
 
-    // For each tweet, get liking users and retweeting users
     for (const tweetId of tweetIds) {
       console.log(`Processing tweet ${tweetId}...`);
 
-      // Get liking users
-      try {
-        const likesResponse = await fetch(
-          `https://api.twitter.com/2/tweets/${tweetId}/liking_users?user.fields=username`,
-          { headers: { Authorization: `Bearer ${bearerToken}` } }
-        );
+      // Get likes using User OAuth token
+      if (userAccessToken) {
+        try {
+          const likesResponse = await fetch(
+            `https://api.twitter.com/2/tweets/${tweetId}/liking_users?user.fields=username`,
+            { headers: { Authorization: `Bearer ${userAccessToken}` } }
+          );
 
-        if (likesResponse.ok) {
-          const likesData = await likesResponse.json();
-          if (likesData.data) {
-            for (const user of likesData.data) {
-              const username = user.username.toLowerCase();
-              if (usernameToWallet[username]) {
-                const wallet = usernameToWallet[username];
-                if (!results[wallet]) results[wallet] = { likes: 0, retweets: 0 };
-                results[wallet].likes++;
+          const likesText = await likesResponse.text();
+          console.log(`Likes response status: ${likesResponse.status}`);
+          
+          if (likesResponse.ok) {
+            const likesData = JSON.parse(likesText);
+            console.log('Liking users:', likesData.data?.map((u: any) => u.username));
+            if (likesData.data) {
+              for (const user of likesData.data) {
+                const username = user.username.toLowerCase();
+                if (usernameToWallet[username]) {
+                  const w = usernameToWallet[username];
+                  if (!results[w]) results[w] = { likes: 0, retweets: 0 };
+                  results[w].likes++;
+                }
               }
             }
+          } else {
+            console.log(`Likes fetch failed:`, likesText);
           }
-        } else {
-          console.log(`Likes fetch failed for ${tweetId}:`, await likesResponse.text());
+        } catch (e) {
+          console.error(`Error fetching likes:`, e);
         }
-      } catch (e) {
-        console.error(`Error fetching likes for ${tweetId}:`, e);
+      } else {
+        console.log('No OAuth token - skipping likes');
       }
 
-      // Get retweeting users
+      // Get retweets using Bearer token
       try {
         const retweetsResponse = await fetch(
           `https://api.twitter.com/2/tweets/${tweetId}/retweeted_by?user.fields=username`,
@@ -101,41 +115,37 @@ export async function POST(request: NextRequest) {
 
         if (retweetsResponse.ok) {
           const retweetsData = await retweetsResponse.json();
+          console.log('Retweeting users:', retweetsData.data?.map((u: any) => u.username));
           if (retweetsData.data) {
             for (const user of retweetsData.data) {
               const username = user.username.toLowerCase();
               if (usernameToWallet[username]) {
-                const wallet = usernameToWallet[username];
-                if (!results[wallet]) results[wallet] = { likes: 0, retweets: 0 };
-                results[wallet].retweets++;
+                const w = usernameToWallet[username];
+                if (!results[w]) results[w] = { likes: 0, retweets: 0 };
+                results[w].retweets++;
               }
             }
           }
-        } else {
-          console.log(`Retweets fetch failed for ${tweetId}:`, await retweetsResponse.text());
         }
       } catch (e) {
-        console.error(`Error fetching retweets for ${tweetId}:`, e);
+        console.error(`Error fetching retweets:`, e);
       }
 
-      // Small delay to avoid rate limits
       await new Promise(r => setTimeout(r, 100));
     }
 
-    // Update user points in database
     const updates = [];
-    for (const [wallet, engagement] of Object.entries(results)) {
+    for (const [w, engagement] of Object.entries(results)) {
       const points = engagement.likes * 1 + engagement.retweets * 3;
       
-      // Get current user data
-      const userData = await supabaseGet('whale_club_users', `wallet_address=eq.${wallet}&select=*`);
+      const userData = await supabaseGet('whale_club_users', `wallet_address=eq.${w}&select=*`);
       if (userData && userData[0]) {
         const user = userData[0];
         const newLikes = (user.likes_count || 0) + engagement.likes;
         const newRetweets = (user.retweets_count || 0) + engagement.retweets;
         const newPoints = newLikes * 1 + newRetweets * 3 + (user.quotes_count || 0) * 5;
 
-        await supabaseUpdate('whale_club_users', `wallet_address=eq.${wallet}`, {
+        await supabaseUpdate('whale_club_users', `wallet_address=eq.${w}`, {
           likes_count: newLikes,
           retweets_count: newRetweets,
           total_points: newPoints,
@@ -144,7 +154,7 @@ export async function POST(request: NextRequest) {
         });
 
         updates.push({
-          wallet,
+          wallet: w,
           username: user.twitter_username,
           addedLikes: engagement.likes,
           addedRetweets: engagement.retweets,

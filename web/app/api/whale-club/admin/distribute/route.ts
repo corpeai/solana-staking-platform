@@ -32,26 +32,22 @@ export async function POST(request: NextRequest) {
   try {
     const { adminWallet, action, signedTransaction, timestamp } = await request.json();
 
-    // Verify admin wallet
     if (adminWallet !== ADMIN_WALLET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 });
     }
 
-    // Verify timestamp is recent (within 5 minutes)
     if (!timestamp || Date.now() - timestamp > 5 * 60 * 1000) {
       return NextResponse.json({ error: 'Request expired' }, { status: 400 });
     }
 
-    // Verify signed transaction exists
     if (!signedTransaction) {
       return NextResponse.json({ error: 'Signature required' }, { status: 400 });
     }
 
     if (action === 'snapshot') {
-      // Get all users with points (exclude stakepointapp holder)
       const users = await supabaseGet(
         'whale_club_users',
-        `twitter_username=neq.stakepointapp&select=wallet_address,twitter_username,nickname,total_points,likes_count,retweets_count,quotes_count&order=total_points.desc`
+        `twitter_username=neq._oauth_holder&select=wallet_address,twitter_username,nickname,total_points,likes_count,retweets_count,quotes_count&order=total_points.desc`
       );
 
       const totalPoints = users.reduce((sum: number, u: any) => sum + (u.total_points || 0), 0);
@@ -77,8 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'reset') {
-      // Reset all points (exclude stakepointapp holder)
-      await supabaseUpdate('whale_club_users', `twitter_username=neq.stakepointapp`, {
+      await supabaseUpdate('whale_club_users', `twitter_username=neq._oauth_holder`, {
         total_points: 0,
         likes_count: 0,
         retweets_count: 0,

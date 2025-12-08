@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const key = process.env.SUPABASE_SERVICE_KEY;
 
     const response = await fetch(
-      `${url}/rest/v1/whale_club_users?select=wallet_address,twitter_username,nickname,total_points,likes_count,retweets_count,quotes_count&twitter_username=neq.stakepointapp&order=total_points.desc&limit=20`,
+      `${url}/rest/v1/whale_club_users?select=wallet_address,twitter_username,nickname,total_points,likes_count,retweets_count,quotes_count&twitter_username=neq._oauth_holder&order=total_points.desc&limit=20`,
       {
         headers: {
           'apikey': key!,

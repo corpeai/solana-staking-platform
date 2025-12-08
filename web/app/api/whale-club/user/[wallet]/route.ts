@@ -4,17 +4,21 @@ export const dynamic = 'force-dynamic';
 
 function getSupabase() {
   const { createClient } = require('@supabase/supabase-js');
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!
-  );
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_KEY;
+  console.log('Supabase URL:', url);
+  console.log('Service key exists:', !!key);
+  console.log('Service key length:', key?.length);
+  return createClient(url!, key!);
 }
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { wallet: string } }
+  context: { params: { wallet: string } }
 ) {
-  const wallet = params.wallet;
+  const wallet = context.params.wallet;
+  console.log('=== USER API DEBUG ===');
+  console.log('Wallet param:', wallet);
 
   if (!wallet) {
     return NextResponse.json({ error: 'Wallet required' }, { status: 400 });
@@ -22,13 +26,22 @@ export async function GET(
 
   try {
     const supabase = getSupabase();
+    
+    console.log('Querying for wallet:', wallet);
+    
     const { data, error } = await supabase
       .from('whale_club_users')
       .select('*')
       .eq('wallet_address', wallet)
       .maybeSingle();
 
-    if (error) throw error;
+    console.log('Query error:', error);
+    console.log('Query data:', data ? 'Found' : 'Not found');
+
+    if (error) {
+      console.error('Supabase error:', error);
+      throw error;
+    }
 
     if (!data) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });

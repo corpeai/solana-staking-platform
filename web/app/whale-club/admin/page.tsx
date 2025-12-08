@@ -19,6 +19,15 @@ interface DistributionEntry {
   solAmount?: number;
 }
 
+interface SyncUpdate {
+  wallet: string;
+  username: string;
+  addedLikes: number;
+  addedRetweets: number;
+  addedPoints: number;
+  totalPoints: number;
+}
+
 export default function WhaleClubAdmin() {
   const { publicKey, connected, signMessage } = useWallet();
   const { connection } = useConnection();
@@ -30,6 +39,15 @@ export default function WhaleClubAdmin() {
     distribution: DistributionEntry[];
   } | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  
+  // Twitter Sync
+  const [tweetIdsInput, setTweetIdsInput] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<{
+    tweetsProcessed: number;
+    usersUpdated: number;
+    updates: SyncUpdate[];
+  } | null>(null);
 
   const isAdmin = connected && publicKey?.toString() === ADMIN_WALLET;
 
@@ -59,16 +77,12 @@ export default function WhaleClubAdmin() {
     setMessage(null);
 
     try {
-      // Create message with timestamp
       const timestamp = Date.now();
       const msgText = `WhaleClub Admin: ${action} at ${timestamp}`;
-
-      // Sign with wallet
       const encodedMessage = new TextEncoder().encode(msgText);
       const signature = await signMessage(encodedMessage);
       const signatureBase58 = bs58.encode(signature);
 
-      // Send to API
       const response = await fetch("/api/whale-club/admin/distribute", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,7 +101,6 @@ export default function WhaleClubAdmin() {
       }
 
       if (action === "snapshot") {
-        // Calculate SOL amounts for each user
         const distributionWithSol = data.distribution.map((entry: DistributionEntry) => ({
           ...entry,
           solAmount: (parseFloat(entry.sharePercent) / 100) * rewardPoolBalance,
@@ -109,6 +122,52 @@ export default function WhaleClubAdmin() {
     }
   };
 
+  const handleSyncTwitter = async () => {
+    if (!publicKey) {
+      setMessage("Wallet not connected");
+      return;
+    }
+
+    // Parse tweet IDs from input
+    const tweetIds = tweetIdsInput
+      .split(/[\n,\s]+/)
+      .map(id => id.trim())
+      .filter(id => id.length > 0);
+
+    if (tweetIds.length === 0) {
+      setMessage("❌ Enter at least one tweet ID");
+      return;
+    }
+
+    setSyncing(true);
+    setMessage(null);
+    setSyncResult(null);
+
+    try {
+      const response = await fetch("/api/whale-club/admin/sync-engagement", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          wallet: publicKey.toString(),
+          tweetIds,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Sync failed");
+      }
+
+      setSyncResult(data);
+      setMessage(`✅ Synced ${data.tweetsProcessed} tweets, updated ${data.usersUpdated} users`);
+    } catch (error: any) {
+      setMessage(`❌ Error: ${error.message}`);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white p-4 sm:p-6 lg:p-8 pt-16 lg:pt-8">
       <div className="max-w-4xl mx-auto">
@@ -118,7 +177,7 @@ export default function WhaleClubAdmin() {
             🐋 Whale Club Admin
           </h1>
           <p className="text-gray-400">
-            Manage reward distribution and reset points
+            Manage Twitter sync, reward distribution, and reset points
           </p>
         </div>
 
@@ -162,6 +221,78 @@ export default function WhaleClubAdmin() {
         {/* Admin Panel */}
         {isAdmin && (
           <div className="space-y-6">
+            
+            {/* Twitter Sync Section */}
+            <div className="bg-white/[0.02] border border-blue-500/20 rounded-xl p-6">
+              <h3 className="font-semibold mb-4 flex items-center gap-2">
+                <span>🐦</span> Twitter Engagement Sync
+              </h3>
+              <p className="text-sm text-gray-400 mb-4">
+                Enter StakePoint tweet IDs to sync likes and retweets from registered users.
+                Find tweet IDs from the URL: twitter.com/StakePointApp/status/<strong>TWEET_ID</strong>
+              </p>
+              
+              <textarea
+                value={tweetIdsInput}
+                onChange={(e) => setTweetIdsInput(e.target.value)}
+                placeholder="Enter tweet IDs (one per line or comma-separated)&#10;Example:&#10;1234567890123456789&#10;9876543210987654321"
+                className="w-full h-32 px-4 py-3 bg-black/50 border border-white/[0.1] rounded-lg text-sm 
+                         focus:outline-none focus:border-blue-500/50 resize-none font-mono"
+              />
+              
+              <button
+                onClick={handleSyncTwitter}
+                disabled={syncing || !tweetIdsInput.trim()}
+                className="mt-4 w-full py-3 bg-gradient-to-r from-blue-500 to-blue-600 
+                         hover:from-blue-600 hover:to-blue-700 rounded-lg font-semibold 
+                         transition-all disabled:opacity-50 disabled:cursor-not-allowed
+                         flex items-center justify-center gap-2"
+              >
+                {syncing ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Syncing...
+                  </>
+                ) : (
+                  <>🔄 Sync Engagement</>
+                )}
+              </button>
+
+              {/* Sync Results */}
+              {syncResult && (
+                <div className="mt-4 p-4 bg-green-500/10 border border-green-500/20 rounded-lg">
+                  <p className="font-semibold text-green-400 mb-2">
+                    ✅ Sync Complete
+                  </p>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-xs text-gray-400">Tweets Processed</p>
+                      <p className="text-xl font-bold">{syncResult.tweetsProcessed}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-400">Users Updated</p>
+                      <p className="text-xl font-bold">{syncResult.usersUpdated}</p>
+                    </div>
+                  </div>
+                  
+                  {syncResult.updates.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-gray-400 font-semibold">Updates:</p>
+                      {syncResult.updates.map((update, i) => (
+                        <div key={i} className="flex justify-between items-center text-sm bg-black/30 rounded px-3 py-2">
+                          <span>@{update.username}</span>
+                          <span className="text-gray-400">
+                            +{update.addedLikes} likes, +{update.addedRetweets} RTs = 
+                            <span className="text-[#fb57ff] ml-1">+{update.addedPoints} pts</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Action Buttons */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button

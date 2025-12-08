@@ -453,9 +453,9 @@ export default function PoolCard(props: PoolCardProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected, publicKey, effectiveMintAddress, poolId, tokenDecimals]);
 
-  // Price fetching
+  // Price fetching - uses mint address instead of pair address
   useEffect(() => {
-    if (!pairAddress) {
+    if (!effectiveMintAddress) {
       setPriceLoading(false);
       return;
     }
@@ -463,7 +463,7 @@ export default function PoolCard(props: PoolCardProps) {
     let isMounted = true;
 
     async function fetchPrice() {
-      const cached = priceCache.get(pairAddress);
+      const cached = priceCache.get(effectiveMintAddress!);
       if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
         if (isMounted) {
           setPrice(cached.price);
@@ -478,7 +478,7 @@ export default function PoolCard(props: PoolCardProps) {
         const timeoutId = setTimeout(() => controller.abort(), 10000);
 
         const res = await fetch(
-          `https://api.dexscreener.com/latest/dex/pairs/solana/${pairAddress}`,
+          `https://api.dexscreener.com/tokens/solana/${effectiveMintAddress}`,
           { signal: controller.signal, cache: 'no-store' }
         );
 
@@ -487,22 +487,27 @@ export default function PoolCard(props: PoolCardProps) {
         if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
 
         const data = await res.json();
-        const pairData = data?.pairs?.[0];
+        const pairs = data?.pairs || [];
+        const bestPair = pairs.sort(
+          (a: any, b: any) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0)
+        )[0];
         
-        if (isMounted && pairData) {
-          const priceValue = parseFloat(pairData.priceUsd) || null;
-          const priceChangeValue = parseFloat(pairData.priceChange?.h24 || 0);
+        if (isMounted && bestPair) {
+          const priceValue = parseFloat(bestPair.priceUsd) || null;
+          const priceChangeValue = parseFloat(bestPair.priceChange?.h24 || 0);
           
           setPrice(priceValue);
           setPriceChange24h(priceChangeValue);
           setPriceLoading(false);
           
-          priceCache.set(pairAddress, {
+          priceCache.set(effectiveMintAddress!, {
             price: priceValue,
             priceChange24h: priceChangeValue,
             timestamp: Date.now()
           });
         } else if (isMounted) {
+          setPrice(null);
+          setPriceChange24h(null);
           setPriceLoading(false);
         }
       } catch (err) {
@@ -519,7 +524,7 @@ export default function PoolCard(props: PoolCardProps) {
       isMounted = false;
       clearInterval(interval);
     };
-  }, [pairAddress, symbol]);
+  }, [effectiveMintAddress, symbol]);
 
   const handleQuickSelect = (percent: number) => {
     if (openModal === "stake") {

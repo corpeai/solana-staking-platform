@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { PublicKey } from '@solana/web3.js';
+import { PublicKey, Transaction, SystemProgram } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { RefreshCw, Trophy, Twitter, Wallet, Star, MessageCircle, Send, Edit2, Check, X, Lock } from 'lucide-react';
 import bs58 from 'bs58';
@@ -72,7 +72,7 @@ const WhaleClub: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   
   // Chat Auth
-  const [chatAuth, setChatAuth] = useState<{ signature: string; timestamp: number } | null>(null);
+  const [chatSession, setChatSession] = useState<{ token: string; expiresAt: string } | null>(null);
   const [authenticating, setAuthenticating] = useState(false);
 
   const checkTokenBalance = useCallback(async () => {
@@ -205,88 +205,109 @@ const WhaleClub: React.FC = () => {
 
   // ========== CHAT AUTH ==========
   const authenticateChat = async () => {
-    if (!publicKey || !signMessage) return null;
+    if (!publicKey || !connection) return null;
     setAuthenticating(true);
     try {
-      const timestamp = Date.now();
-      const message = `WhaleChat:${publicKey.toString()}:${timestamp}`;
-      const messageBytes = new TextEncoder().encode(message);
-      const signatureBytes = await signMessage(messageBytes);
-      const signature = bs58.encode(signatureBytes);
-      setChatAuth({ signature, timestamp });
-      return { signature, timestamp };
-    } catch (error) {
-      console.error('Failed to authenticate:', error);
-      return null;
-    } finally {
-      setAuthenticating(false);
-    }
-  };
+        const timestamp = Date.now();
+        
+        // Create a simple transaction (0 SOL to self)
+        const transaction = new Transaction().add(
+        SystemProgram.transfer({
+            fromPubkey: publicKey,
+            toPubkey: publicKey,
+            lamports: 0,
+        })
+        );
+        
+        // Get recent blockhash
+        const { blockhash } = await connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = publicKey;
 
-  const getValidAuth = async () => {
-    if (chatAuth && Date.now() - chatAuth.timestamp < 4 * 60 * 1000) {
-      return chatAuth;
-    }
-    return await authenticateChat();
-  };
+        // Get wallet to sign (works with Ledger!)
+        const wallet = (window as any).solana || (window as any).solflare;
+        if (!wallet) throw new Error('No wallet found');
+        
+        const signedTransaction = await wallet.signTransaction(transaction);
+        const serialized = signedTransaction.serialize().toString('base64');
 
-  // ========== CHAT FUNCTIONS ==========
-  const fetchMessages = async () => {
-    if (!publicKey) return;
-    const auth = await getValidAuth();
-    if (!auth) return;
-    
-    setLoadingMessages(true);
-    try {
-      const params = new URLSearchParams({
-        wallet: publicKey.toString(),
-        signature: auth.signature,
-        timestamp: auth.timestamp.toString(),
-        limit: '50'
-      });
-      const response = await fetch(`/api/whale-club/chat?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data.messages || []);
-      } else if (response.status === 401) {
-        setChatAuth(null);
-      }
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-    } finally {
-      setLoadingMessages(false);
-    }
-  };
-
-  const sendMessage = async () => {
-    if (!publicKey || !newMessage.trim() || sendingMessage) return;
-    const auth = await getValidAuth();
-    if (!auth) return;
-    
-    setSendingMessage(true);
-    try {
-      const response = await fetch('/api/whale-club/chat', {
+        // Send to backend for verification
+        const response = await fetch('/api/whale-club/verify-wallet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          wallet: publicKey.toString(),
-          nickname: nickname || null,
-          message: newMessage.trim(),
-          signature: auth.signature,
-          timestamp: auth.timestamp,
+            wallet: publicKey.toString(),
+            signedTransaction: serialized,
+            timestamp,
         }),
-      });
-      if (response.ok) {
-        setNewMessage('');
-      } else if (response.status === 401) {
-        setChatAuth(null);
-      }
+        });
+
+        if (!response.ok) {
+        throw new Error('Verification failed');
+        }
+
+        const data = await response.json();
+        const session = { token: data.sessionToken, expiresAt: data.expiresAt };
+        setChatSession(session);
+        return session;
     } catch (error) {
-      console.error('Error sending message:', error);
+        console.error('Failed to authenticate:', error);
+        return null;
     } finally {
-      setSendingMessage(false);
+        setAuthenticating(false);
     }
-  };
+    };
+
+  // ========== CHAT FUNCTIONS ==========
+  const fetchMessages = async () => {
+    if (!publicKey || !chatSession) return;
+    setLoadingMessages(true);
+    try {
+        const params = new URLSearchParams({
+        wallet: publicKey.toString(),
+        session: chatSession.token,
+        limit: '50'
+        });
+        const response = await fetch(`/api/whale-club/chat?${params}`);
+        if (response.ok) {
+        const data = await response.json();
+        setMessages(data.messages || []);
+        } else if (response.status === 401) {
+        setChatSession(null);
+        }
+    } catch (error) {
+        console.error('Error fetching messages:', error);
+    } finally {
+        setLoadingMessages(false);
+    }
+    };
+
+    const sendMessage = async () => {
+    if (!publicKey || !newMessage.trim() || sendingMessage || !chatSession) return;
+    setSendingMessage(true);
+    try {
+        const response = await fetch('/api/whale-club/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            wallet: publicKey.toString(),
+            nickname: nickname || null,
+            message: newMessage.trim(),
+            sessionToken: chatSession.token,
+        }),
+        });
+        if (response.ok) {
+        setNewMessage('');
+        await fetchMessages();
+        } else if (response.status === 401) {
+        setChatSession(null);
+        }
+    } catch (error) {
+        console.error('Error sending message:', error);
+    } finally {
+        setSendingMessage(false);
+    }
+    };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -307,10 +328,10 @@ const WhaleClub: React.FC = () => {
   }, [fetchRewardPoolBalance, fetchLeaderboard]);
 
   useEffect(() => {
-    if (activeTab === 'chat' && isQualified && chatAuth) {
-      fetchMessages();
+    if (activeTab === 'chat' && isQualified && chatSession) {
+        fetchMessages();
     }
-  }, [activeTab, isQualified, chatAuth]);
+    }, [activeTab, isQualified, chatSession]);
 
   useEffect(() => { scrollToBottom(); }, [messages]);
 
@@ -535,11 +556,11 @@ const WhaleClub: React.FC = () => {
                   <span className="text-xs text-gray-500">{messages.length} messages</span>
                 </div>
 
-                {!chatAuth ? (
+                {!chatSession ? (
                   <div className="h-[420px] flex flex-col items-center justify-center p-6 text-center">
                     <div className="w-16 h-16 rounded-full flex items-center justify-center mb-4" style={{ background: 'rgba(251, 87, 255, 0.1)' }}>🔐</div>
                     <h3 className="font-semibold mb-2">Encrypted Chat</h3>
-                    <p className="text-sm text-gray-500 mb-4">Sign to verify your whale status and unlock the chat</p>
+                    <p className="text-sm text-gray-500 mb-4">Sign a transaction to verify your wallet (no SOL sent)</p>
                     <button onClick={authenticateChat} disabled={authenticating} className="px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all disabled:opacity-50" style={{ background: 'linear-gradient(45deg, black, #fb57ff)' }}>
                       {authenticating ? (<><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />Verifying...</>) : (<>🔓 Unlock Chat</>)}
                     </button>
@@ -575,7 +596,6 @@ const WhaleClub: React.FC = () => {
                         <button onClick={sendMessage} disabled={!newMessage.trim() || sendingMessage} className="p-2 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed" style={{ background: 'linear-gradient(45deg, black, #fb57ff)' }}><Send className="w-5 h-5" /></button>
                       </div>
                     </div>
-                  </>
                 )}
               </div>
             )}

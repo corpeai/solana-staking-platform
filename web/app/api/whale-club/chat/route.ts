@@ -80,6 +80,22 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    // Auto-cleanup: Keep only last 500 messages
+    const { data: oldMessages } = await supabase
+      .from('whale_club_messages')
+      .select('id')
+      .order('created_at', { ascending: false })
+      .range(500, 1000);
+
+    if (oldMessages && oldMessages.length > 0) {
+      const idsToDelete = oldMessages.map((m: any) => m.id);
+      await supabase
+        .from('whale_club_messages')
+        .delete()
+        .in('id', idsToDelete);
+    }
+
     return NextResponse.json({ success: true, message: data });
   } catch (error) {
     console.error('Error posting message:', error);

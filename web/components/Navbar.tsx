@@ -109,7 +109,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
       {/* Right Side - Social, Dashboard & Wallet */}
       <div className="flex items-center gap-2">
         {/* Social Icons - Desktop only */}
-        
+        <a
           href="https://twitter.com/stakepointapp"
           target="_blank"
           rel="noopener noreferrer"

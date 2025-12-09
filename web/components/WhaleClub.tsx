@@ -247,50 +247,63 @@ const WhaleClub: React.FC = () => {
 
     // ========== CHAT AUTH ==========
     const authenticateChat = async () => {
-    if (!publicKey || !connection || !signTransaction) return null;
-    setAuthenticating(true);
-    try {
-        const timestamp = Date.now();
+        if (!publicKey || !connection || !signTransaction) return null;
+        setAuthenticating(true);
         
-        const transaction = new Transaction().add(
-        SystemProgram.transfer({
-            fromPubkey: publicKey,
-            toPubkey: publicKey,
-            lamports: 0,
-        })
-        );
+        try {
+        const timestamp = Date.now();
+        const { TransactionMessage, VersionedTransaction, ComputeBudgetProgram } = await import('@solana/web3.js');
+        
+        const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+        const authMessage = `StakePoint:${timestamp}`;
         
         const { blockhash } = await connection.getLatestBlockhash();
-        transaction.recentBlockhash = blockhash;
-        transaction.feePayer = publicKey;
-
+        
+        // Build instructions with compute budget FIRST (Phantom checklist)
+        const instructions = [
+            ComputeBudgetProgram.setComputeUnitLimit({ units: 5000 }),
+            ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
+            {
+            keys: [{ pubkey: publicKey, isSigner: true, isWritable: false }],
+            programId: MEMO_PROGRAM_ID,
+            data: Buffer.from(authMessage, 'utf-8'),
+            },
+        ];
+        
+        // Use VersionedTransaction with explicit feePayer
+        const messageV0 = new TransactionMessage({
+            payerKey: publicKey,
+            recentBlockhash: blockhash,
+            instructions,
+        }).compileToV0Message();
+        
+        const transaction = new VersionedTransaction(messageV0);
         const signedTransaction = await signTransaction(transaction);
-        const serialized = Buffer.from(signedTransaction.serialize()).toString('base64');
-
+        
         const response = await fetch('/api/whale-club/verify-wallet', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
             wallet: publicKey.toString(),
-            signedTransaction: serialized,
+            signedTransaction: Buffer.from(signedTransaction.serialize()).toString('base64'),
             timestamp,
-        }),
+            }),
         });
 
         if (!response.ok) {
-        throw new Error('Verification failed');
+            throw new Error('Verification failed');
         }
 
         const data = await response.json();
         const session = { token: data.sessionToken, expiresAt: data.expiresAt };
         setChatSession(session);
         return session;
-    } catch (error) {
+        } catch (error) {
         console.error('Failed to authenticate:', error);
         return null;
-    } finally {
+        } finally {
         setAuthenticating(false);
-    }
+        }
     };
 
   // ========== CHAT FUNCTIONS ==========

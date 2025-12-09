@@ -32,6 +32,23 @@ export class TelegramBotService {
     }
   }
 
+  // Helper: Convert duration to days (handles seconds input)
+  private toDays(duration: number): number {
+    if (duration <= 0) return 0;
+    // If value > 400, assume it's in seconds (no realistic lock > 400 days)
+    if (duration > 400) {
+      return Math.round(duration / 86400); // 86400 seconds per day
+    }
+    return duration;
+  }
+
+  // Helper: Format lock period for display
+  private formatLockPeriod(duration: number): string {
+    const days = this.toDays(duration);
+    if (days <= 0) return '🔓 Flexible (Unlocked)';
+    return `🔒 ${days} days`;
+  }
+
   async processUpdate(update: any) {
     if (!this.bot) return;
 
@@ -356,13 +373,14 @@ Let's see who's leading the pack! 🚀
     }
 
     try {
+      const lockPeriodDisplay = this.formatLockPeriod(poolData.lockPeriodDays);
+      
       const message = `
 🎉 *New Staking Pool Created!*
 
 *Pool:* ${poolData.poolName}
 *Token:* ${poolData.tokenSymbol}
-*Type:* ${poolData.aprType === 'locked' ? '🔒 Locked' : '🔓 Unlocked'}
-*Lock Period:* ${poolData.lockPeriodDays > 0 ? `${poolData.lockPeriodDays} days` : 'Flexible'}
+*Lock Period:* ${lockPeriodDisplay}
 
 Start staking now! 🚀
       `;
@@ -401,13 +419,15 @@ Start staking now! 🚀
     }
 
     try {
+      const lockPeriodDisplay = this.formatLockPeriod(poolData.lockPeriodDays);
+      
       const message = `
 🌾 *New Farming Pool Created!*
 
 *Pool:* ${poolData.poolName}
 *LP Token:* ${poolData.tokenSymbol}
 *APR:* ${poolData.apr > 0 ? `${poolData.apr}%` : 'Variable'}
-*Lock Period:* ${poolData.lockPeriodDays > 0 ? `${poolData.lockPeriodDays} days` : 'Flexible'}
+*Lock Period:* ${lockPeriodDisplay}
 
 Start farming now! 🚜
       `;
@@ -448,13 +468,14 @@ Start farming now! 🚜
 
     try {
       const shortWallet = `${lockData.creatorWallet.slice(0, 4)}...${lockData.creatorWallet.slice(-4)}`;
+      const lockPeriodDisplay = this.formatLockPeriod(lockData.lockDurationDays);
       
       const message = `
 🔐 *New Token Lock Created!*
 
 *Token:* ${lockData.tokenName} (${lockData.tokenSymbol})
 *Amount:* ${lockData.amount.toLocaleString()} ${lockData.tokenSymbol}
-*Duration:* ${lockData.lockDurationDays} days
+*Duration:* ${lockPeriodDisplay}
 *Locked by:* \`${shortWallet}\`
 
 Tokens secured! 🛡️

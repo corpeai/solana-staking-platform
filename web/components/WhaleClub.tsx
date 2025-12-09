@@ -257,20 +257,18 @@ const WhaleClub: React.FC = () => {
         const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
         const authMessage = `StakePoint:${timestamp}`;
         
-        const { blockhash } = await connection.getLatestBlockhash();
+        const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
         
-        // Build instructions with compute budget FIRST (Phantom checklist)
         const instructions = [
             ComputeBudgetProgram.setComputeUnitLimit({ units: 5000 }),
-            ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1 }),
+            ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 }),
             {
-            keys: [{ pubkey: publicKey, isSigner: true, isWritable: false }],
+            keys: [],
             programId: MEMO_PROGRAM_ID,
             data: Buffer.from(authMessage, 'utf-8'),
             },
         ];
         
-        // Use VersionedTransaction with explicit feePayer
         const messageV0 = new TransactionMessage({
             payerKey: publicKey,
             recentBlockhash: blockhash,
@@ -280,12 +278,26 @@ const WhaleClub: React.FC = () => {
         const transaction = new VersionedTransaction(messageV0);
         const signedTransaction = await signTransaction(transaction);
         
+        // Actually send the transaction
+        const txSignature = await connection.sendRawTransaction(signedTransaction.serialize(), {
+            skipPreflight: false,
+            preflightCommitment: 'confirmed',
+        });
+        
+        // Wait for confirmation
+        await connection.confirmTransaction({
+            signature: txSignature,
+            blockhash,
+            lastValidBlockHeight,
+        }, 'confirmed');
+
+        // Verify with backend
         const response = await fetch('/api/whale-club/verify-wallet', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
             wallet: publicKey.toString(),
-            signedTransaction: Buffer.from(signedTransaction.serialize()).toString('base64'),
+            txSignature,
             timestamp,
             }),
         });

@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { VersionedTransaction, PublicKey, Connection } from '@solana/web3.js';
+import { PublicKey, Connection } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
-import nacl from 'tweetnacl';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,9 +55,9 @@ async function getStakedBalance(wallet: string): Promise<number> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { wallet, signedTransaction, timestamp } = await request.json();
+    const { wallet, txSignature, timestamp } = await request.json();
 
-    if (!wallet || !signedTransaction || !timestamp) {
+    if (!wallet || !txSignature || !timestamp) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -67,34 +66,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Verification expired' }, { status: 401 });
     }
 
-    const walletPubkey = new PublicKey(wallet);
-    const txBytes = Buffer.from(signedTransaction, 'base64');
-    
-    // Deserialize as VersionedTransaction
-    const transaction = VersionedTransaction.deserialize(txBytes);
-    
-    // Verify the signer matches the wallet
-    const signerPubkey = transaction.message.staticAccountKeys[0];
-    if (!signerPubkey.equals(walletPubkey)) {
-      return NextResponse.json({ error: 'Signer mismatch' }, { status: 401 });
-    }
-    
-    // Verify signature is valid
-    let isValid = false;
-    if (transaction.signatures.length > 0 && transaction.signatures[0].length === 64) {
-      isValid = nacl.sign.detached.verify(
-        transaction.message.serialize(),
-        transaction.signatures[0],
-        walletPubkey.toBytes()
-      );
+    const connection = new Connection(process.env.NEXT_PUBLIC_RPC_URL || 'https://api.mainnet-beta.solana.com');
+
+    // Verify the transaction exists on-chain
+    const tx = await connection.getTransaction(txSignature, {
+      commitment: 'confirmed',
+      maxSupportedTransactionVersion: 0,
+    });
+
+    if (!tx) {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 401 });
     }
 
-    if (!isValid) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    // Check the fee payer matches the claimed wallet
+    const feePayer = tx.transaction.message.staticAccountKeys[0];
+    if (feePayer.toString() !== wallet) {
+      return NextResponse.json({ error: 'Wallet mismatch' }, { status: 401 });
     }
 
     // Verify user holds 10M+ SPT
-    const connection = new Connection(process.env.NEXT_PUBLIC_RPC_URL || 'https://api.mainnet-beta.solana.com');
     const walletBalance = await getWalletBalance(connection, wallet);
     const stakedBalance = await getStakedBalance(wallet);
     const totalBalance = walletBalance + stakedBalance;

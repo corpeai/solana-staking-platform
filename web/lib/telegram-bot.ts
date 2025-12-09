@@ -19,7 +19,7 @@ interface SwapStats {
 }
 
 export class TelegramBotService {
- private bot: TelegramBot | null = null;
+  private bot: TelegramBot | null = null;
   private prisma: PrismaClient;
   private bannerImageUrl: string = "https://image2url.com/images/1764325586041-e82989fd-172c-446c-a02d-25ea2690bbd6.png";
   private fallbackLogoUrl: string = "https://solanastaking-seven.vercel.app/favicon.jpg";
@@ -28,12 +28,10 @@ export class TelegramBotService {
     this.prisma = prisma;
     const token = process.env.TELEGRAM_BOT_TOKEN;
     if (token) {
-      // Initialize bot without polling (webhook mode)
       this.bot = new TelegramBot(token, { polling: false });
     }
   }
 
-  // Process incoming webhook update
   async processUpdate(update: any) {
     if (!this.bot) return;
 
@@ -44,7 +42,6 @@ export class TelegramBotService {
       const chatId = message.chat.id;
       const text = message.text;
 
-      // Route commands
       if (text === '/start') {
         await this.handleStart(chatId);
       } else if (text === '/help') {
@@ -63,7 +60,6 @@ export class TelegramBotService {
     }
   }
 
-  // Command handlers
   private async handleStart(chatId: number) {
     const welcomeMessage = `
 🎯 *Welcome to StakePoint Leaderboard Bot!*
@@ -145,7 +141,6 @@ Let's see who's leading the pack! 🚀
     await this.sendMessageWithBanner(chatId, message);
   }
 
-  // Helper: Send message with optional banner image
   private async sendMessageWithBanner(chatId: number, message: string) {
     if (this.bannerImageUrl) {
       try {
@@ -162,7 +157,6 @@ Let's see who's leading the pack! 🚀
     }
   }
 
-  // Helper: Format numbers
   private formatNumber(num: number, decimals: number = 2): string {
     return num.toLocaleString('en-US', {
       minimumFractionDigits: decimals,
@@ -170,12 +164,10 @@ Let's see who's leading the pack! 🚀
     });
   }
 
-  // Helper: Shorten wallet address
   private shortenAddress(address: string): string {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   }
 
-  // Helper: Get medal emoji
   private getMedal(rank: number): string {
     if (rank === 1) return '🥇';
     if (rank === 2) return '🥈';
@@ -183,7 +175,6 @@ Let's see who's leading the pack! 🚀
     return `${rank}.`;
   }
 
-  // Helper: Get start of current week (Monday 00:00)
   private getWeekStart(): Date {
     const now = new Date();
     const day = now.getDay();
@@ -194,7 +185,6 @@ Let's see who's leading the pack! 🚀
     return monday;
   }
 
-  // Helper: Get end of current week (Sunday 23:59)
   private getWeekEnd(): Date {
     const monday = this.getWeekStart();
     const sunday = new Date(monday);
@@ -203,7 +193,6 @@ Let's see who's leading the pack! 🚀
     return sunday;
   }
 
-  // Fetch stats from database
   private async fetchStats(mode: 'week' | 'month' | 'alltime' | number = 'week'): Promise<SwapStats | null> {
     try {
       const dateFilter: any = {};
@@ -282,7 +271,6 @@ Let's see who's leading the pack! 🚀
     }
   }
 
-  // Format leaderboard message
   private formatLeaderboard(stats: SwapStats, mode: 'week' | 'month' | 'alltime' | number = 'week', limit: number = 10): string {
     let period: string;
     
@@ -352,7 +340,7 @@ Let's see who's leading the pack! 🚀
     return message;
   }
 
-  // Send pool creation alert to group
+  // Send staking pool creation alert
   async sendPoolCreatedAlert(poolData: {
     poolName: string;
     tokenSymbol: string;
@@ -374,12 +362,11 @@ Let's see who's leading the pack! 🚀
 *Pool:* ${poolData.poolName}
 *Token:* ${poolData.tokenSymbol}
 *Type:* ${poolData.aprType === 'locked' ? '🔒 Locked' : '🔓 Unlocked'}
-*Lock Period:* ${poolData.lockPeriodDays} days
+*Lock Period:* ${poolData.lockPeriodDays > 0 ? `${poolData.lockPeriodDays} days` : 'Flexible'}
 
 Start staking now! 🚀
       `;
 
-      // Use token logo if available, otherwise use fallback
       const imageUrl = poolData.tokenLogo || this.fallbackLogoUrl;
       
       try {
@@ -389,13 +376,105 @@ Start staking now! 🚀
         });
       } catch (error) {
         console.error('Failed to send image:', error);
-        // Fallback to text-only if image fails
         await this.bot.sendMessage(parseInt(chatId), message, { parse_mode: 'Markdown' });
       }
 
-      console.log('✅ Pool alert sent to Telegram');
+      console.log('✅ Staking pool alert sent to Telegram');
     } catch (error) {
-      console.error('❌ Failed to send pool alert:', error);
+      console.error('❌ Failed to send staking pool alert:', error);
+    }
+  }
+
+  // Send farming pool creation alert
+  async sendFarmingPoolCreatedAlert(poolData: {
+    poolName: string;
+    tokenSymbol: string;
+    apr: number;
+    lockPeriodDays: number;
+    tokenLogo?: string;
+  }) {
+    const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    
+    if (!this.bot || !chatId) {
+      console.log('⚠️ Telegram alerts not configured');
+      return;
+    }
+
+    try {
+      const message = `
+🌾 *New Farming Pool Created!*
+
+*Pool:* ${poolData.poolName}
+*LP Token:* ${poolData.tokenSymbol}
+*APR:* ${poolData.apr > 0 ? `${poolData.apr}%` : 'Variable'}
+*Lock Period:* ${poolData.lockPeriodDays > 0 ? `${poolData.lockPeriodDays} days` : 'Flexible'}
+
+Start farming now! 🚜
+      `;
+
+      const imageUrl = poolData.tokenLogo || this.fallbackLogoUrl;
+      
+      try {
+        await this.bot.sendPhoto(parseInt(chatId), imageUrl, {
+          caption: message,
+          parse_mode: 'Markdown'
+        });
+      } catch (error) {
+        console.error('Failed to send image:', error);
+        await this.bot.sendMessage(parseInt(chatId), message, { parse_mode: 'Markdown' });
+      }
+
+      console.log('✅ Farming pool alert sent to Telegram');
+    } catch (error) {
+      console.error('❌ Failed to send farming pool alert:', error);
+    }
+  }
+
+  // Send lock creation alert
+  async sendLockCreatedAlert(lockData: {
+    tokenName: string;
+    tokenSymbol: string;
+    amount: number;
+    lockDurationDays: number;
+    creatorWallet: string;
+    tokenLogo?: string;
+  }) {
+    const chatId = process.env.TELEGRAM_ALERT_CHAT_ID;
+    
+    if (!this.bot || !chatId) {
+      console.log('⚠️ Telegram alerts not configured');
+      return;
+    }
+
+    try {
+      const shortWallet = `${lockData.creatorWallet.slice(0, 4)}...${lockData.creatorWallet.slice(-4)}`;
+      
+      const message = `
+🔐 *New Token Lock Created!*
+
+*Token:* ${lockData.tokenName} (${lockData.tokenSymbol})
+*Amount:* ${lockData.amount.toLocaleString()} ${lockData.tokenSymbol}
+*Duration:* ${lockData.lockDurationDays} days
+*Locked by:* \`${shortWallet}\`
+
+Tokens secured! 🛡️
+      `;
+
+      const imageUrl = lockData.tokenLogo || this.fallbackLogoUrl;
+      
+      try {
+        await this.bot.sendPhoto(parseInt(chatId), imageUrl, {
+          caption: message,
+          parse_mode: 'Markdown'
+        });
+      } catch (error) {
+        console.error('Failed to send image:', error);
+        await this.bot.sendMessage(parseInt(chatId), message, { parse_mode: 'Markdown' });
+      }
+
+      console.log('✅ Lock alert sent to Telegram');
+    } catch (error) {
+      console.error('❌ Failed to send lock alert:', error);
     }
   }
 }

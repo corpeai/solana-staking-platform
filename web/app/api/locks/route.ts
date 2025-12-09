@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { TelegramBotService } from '@/lib/telegram-bot';
 
 // GET all locks
 export async function GET(request: NextRequest) {
@@ -26,7 +27,6 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    // Convert BigInt to string for JSON serialization
     const locksResponse = locks.map(lock => ({
       ...lock,
       lockId: lock.lockId.toString(),
@@ -56,11 +56,10 @@ export async function POST(request: NextRequest) {
       creatorWallet,
       poolAddress,
       stakePda,
-      poolId, // ← ADD THIS
+      poolId,
       logo,
     } = body;
 
-    // Validate required fields
     if (!tokenMint || !name || !symbol || !amount || !lockDuration || !creatorWallet) {
       return NextResponse.json(
         { error: 'Missing required fields' },
@@ -68,14 +67,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Calculate unlock time
     const unlockTime = new Date(Date.now() + lockDuration * 1000);
-
-    // Convert lockId to BigInt for database
     const lockIdBigInt = BigInt(lockId || Date.now());
 
-    // Use upsert to handle case where stakePda already exists
-    // This can happen if user locks more tokens in the same pool
     const lock = await prisma.lock.upsert({
       where: {
         lock_token_lock_id_unique: {
@@ -84,7 +78,6 @@ export async function POST(request: NextRequest) {
         },
       },
       update: {
-        // Update the amount if lock already exists (user added more)
         amount: parseFloat(amount),
         unlockTime,
         updatedAt: new Date(),
@@ -100,14 +93,28 @@ export async function POST(request: NextRequest) {
         creatorWallet,
         poolAddress: poolAddress || null,
         stakePda: stakePda || null,
-        poolId: poolId !== undefined ? poolId : null, // ← ADD THIS
+        poolId: poolId !== undefined ? poolId : null,
         logo: logo || null,
         isActive: true,
         isUnlocked: false,
       },
     });
 
-    // Convert BigInt to string for JSON serialization
+    // 📢 Send Telegram alert for new lock
+    try {
+      const telegramBot = new TelegramBotService(prisma);
+      await telegramBot.sendLockCreatedAlert({
+        tokenName: name,
+        tokenSymbol: symbol,
+        amount: parseFloat(amount),
+        lockDurationDays: Math.floor(lockDuration / 86400),
+        creatorWallet,
+        tokenLogo: logo || undefined,
+      });
+    } catch (telegramError) {
+      console.error('⚠️ Telegram lock alert failed:', telegramError);
+    }
+
     const lockResponse = {
       ...lock,
       lockId: lock.lockId.toString(),
@@ -116,11 +123,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(lockResponse, { status: 201 });
   } catch (error: any) {
     console.error('Error creating lock:', error);
-    console.error('Error details:', {
-      message: error.message,
-      code: error.code,
-      meta: error.meta,
-    });
     return NextResponse.json(
       { 
         error: 'Failed to create lock',

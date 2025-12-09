@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { TelegramBotService } from '@/lib/telegram-bot';
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,37 +53,40 @@ export async function POST(req: NextRequest) {
         rewards: body.rewards || body.symbol,
         poolId: parseInt(body.poolId),
         transferTaxBps: body.transferTaxBps || 0,
-        // Multi-DEX support
         dexType: body.dexType || null,
         dexPoolAddress: body.dexPoolAddress || null,
-         
-        // LP-specific fields
         isLPPool: true,
         rewardTokenMint: body.rewardTokenMint || null,
         rewardTokenSymbol: body.rewardTokenSymbol || null,
-        
-        // Reflection fields (disabled for LP pools)
         hasSelfReflections: false,
         hasExternalReflections: false,
         externalReflectionMint: null,
         reflectionTokenSymbol: null,
         reflectionVaultAddress: null,
-        
-        // Pool state
         isInitialized: body.isInitialized ?? true,
         isPaused: body.isPaused ?? false,
         hidden: false,
         featured: false,
-        
-        // Pool address (optional)
         poolAddress: body.poolAddress || null,
-        
-        // Initial values
         totalStaked: 0,
-    },
+      },
     });
 
     console.log("✅ LP Pool created successfully:", pool.id);
+
+    // 📢 Send Telegram alert for farming pool
+    try {
+      const telegramBot = new TelegramBotService(prisma);
+      await telegramBot.sendFarmingPoolCreatedAlert({
+        poolName: pool.name,
+        tokenSymbol: pool.symbol,
+        apr: pool.apr || 0,
+        lockPeriodDays: pool.lockPeriod || 0,
+        tokenLogo: pool.logo || undefined,
+      });
+    } catch (telegramError) {
+      console.error('⚠️ Telegram farming alert failed:', telegramError);
+    }
 
     return NextResponse.json({ 
       success: true, 

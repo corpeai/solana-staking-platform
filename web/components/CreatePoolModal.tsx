@@ -157,13 +157,41 @@ export default function CreatePoolModal({ onClose, onSuccess }: CreatePoolModalP
             processed++;
             setStatusMessage(`Fetching metadata... (${processed}/${allAccounts.length})`);
             
-            // Fetch token info from BirdEye
+            // Fetch token info from BirdEye, fallback to DexScreener
             try {
               const response = await fetch(`/api/birdeye/token-info?address=${mint}`);
               const result = await response.json();
               
               // Use fallback if API returns error
-              const tokenInfo = result.fallback || result;
+              let tokenInfo = result.fallback || result;
+              
+              // If BirdEye returned unknown, try DexScreener
+              if (!tokenInfo.symbol || tokenInfo.symbol === "UNKNOWN" || tokenInfo.name === "Unknown") {
+                console.log(`⚠️ BirdEye returned unknown for ${mint}, trying DexScreener...`);
+                try {
+                  const dexRes = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`);
+                  if (dexRes.ok) {
+                    const dexData = await dexRes.json();
+                    const bestPair = dexData.pairs?.sort((a: any, b: any) => 
+                      (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0)
+                    )[0];
+                    
+                    if (bestPair?.baseToken) {
+                      tokenInfo = {
+                        symbol: bestPair.baseToken.symbol || tokenInfo.symbol,
+                        name: bestPair.baseToken.name || tokenInfo.name,
+                        logoURI: bestPair.info?.imageUrl || tokenInfo.logoURI,
+                        price: parseFloat(bestPair.priceUsd) || tokenInfo.price,
+                        liquidity: bestPair.liquidity?.usd || tokenInfo.liquidity,
+                        marketCap: bestPair.marketCap || tokenInfo.marketCap,
+                      };
+                      console.log(`✅ DexScreener found:`, tokenInfo.symbol);
+                    }
+                  }
+                } catch (dexErr) {
+                  console.log(`⚠️ DexScreener also failed for ${mint}`);
+                }
+              }
               
               tokens.push({
                 mint,

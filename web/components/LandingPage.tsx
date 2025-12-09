@@ -730,7 +730,7 @@ export default function LandingPage() {
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center mb-6">
               <a
-                href="mailto:contact@example.com"
+                href="contact@stakepoint.app"
                 className="group inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg transition-all font-semibold text-sm"
                 style={{ background: 'linear-gradient(45deg, black, #fb57ff)' }}
               >

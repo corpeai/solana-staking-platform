@@ -18,7 +18,7 @@ export default function SupportClient() {
   const [emailCopied, setEmailCopied] = useState(false);
 
   const handleCopyEmail = () => {
-    navigator.clipboard.writeText("support@stakepoint.app");
+    navigator.clipboard.writeText("contact@stakepoint.app");
     setEmailCopied(true);
     setTimeout(() => setEmailCopied(false), 2000);
   };

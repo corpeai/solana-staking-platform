@@ -10,6 +10,7 @@ import TokenSelectModal from "./TokenSelectModal";
 import { useSearchParams } from "next/navigation";
 import { useSound } from '@/hooks/useSound';
 import { executeJupiterSwap, getJupiterQuote } from "@/lib/jupiter-swap";
+import { Suspense } from "react";
 
 interface SwapSuccessModalProps {
   isOpen: boolean;
@@ -129,7 +130,7 @@ interface SwapConfig {
 const JUPITER_REFERRAL_ACCOUNT = process.env.NEXT_PUBLIC_JUPITER_REFERRAL_ACCOUNT || "";
 const JUPITER_REFERRAL_FEE_BPS = parseInt(process.env.NEXT_PUBLIC_JUPITER_REFERRAL_FEE || "50");
 
-export default function SwapPage() {
+function SwapPageContent() {
   const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
   const { showSuccess, showError, showInfo } = useToast();
@@ -1074,5 +1075,13 @@ export default function SwapPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function SwapPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="w-8 h-8 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#fb57ff', borderTopColor: 'transparent' }} /></div>}>
+      <SwapPageContent />
+    </Suspense>
   );
 }

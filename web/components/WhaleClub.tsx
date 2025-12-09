@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
-import { PublicKey, Transaction, SystemProgram } from '@solana/web3.js';
+import { PublicKey } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
 import { Trophy, Twitter, Wallet, Star, MessageCircle, Send, Edit2, Check, X, Lock, Reply, CornerDownRight } from 'lucide-react';
 
@@ -44,7 +44,7 @@ interface ChatMessage {
 type TabType = 'dashboard' | 'chat';
 
 const WhaleClub: React.FC = () => {
-  const { publicKey, connected, signTransaction } = useWallet();
+  const { publicKey, connected, signTransaction, signMessage } = useWallet();
   const { connection } = useConnection();
   
   const [walletBalance, setWalletBalance] = useState<number>(0);
@@ -245,53 +245,53 @@ const WhaleClub: React.FC = () => {
     }
   };
 
-  // ========== CHAT AUTH ==========
-  const authenticateChat = async () => {
+    // ========== CHAT AUTH ==========
+    const authenticateChat = async () => {
     if (!publicKey || !connection || !signTransaction) return null;
     setAuthenticating(true);
     try {
-      const timestamp = Date.now();
-      
-      const transaction = new Transaction().add(
+        const timestamp = Date.now();
+        
+        const transaction = new Transaction().add(
         SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey: publicKey,
-          lamports: 0,
+            fromPubkey: publicKey,
+            toPubkey: publicKey,
+            lamports: 0,
         })
-      );
-      
-      const { blockhash } = await connection.getLatestBlockhash();
-      transaction.recentBlockhash = blockhash;
-      transaction.feePayer = publicKey;
+        );
+        
+        const { blockhash } = await connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+        transaction.feePayer = publicKey;
 
-      const signedTransaction = await signTransaction(transaction);
-      const serialized = Buffer.from(signedTransaction.serialize()).toString('base64');
+        const signedTransaction = await signTransaction(transaction);
+        const serialized = Buffer.from(signedTransaction.serialize()).toString('base64');
 
-      const response = await fetch('/api/whale-club/verify-wallet', {
+        const response = await fetch('/api/whale-club/verify-wallet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          wallet: publicKey.toString(),
-          signedTransaction: serialized,
-          timestamp,
+            wallet: publicKey.toString(),
+            signedTransaction: serialized,
+            timestamp,
         }),
-      });
+        });
 
-      if (!response.ok) {
+        if (!response.ok) {
         throw new Error('Verification failed');
-      }
+        }
 
-      const data = await response.json();
-      const session = { token: data.sessionToken, expiresAt: data.expiresAt };
-      setChatSession(session);
-      return session;
+        const data = await response.json();
+        const session = { token: data.sessionToken, expiresAt: data.expiresAt };
+        setChatSession(session);
+        return session;
     } catch (error) {
-      console.error('Failed to authenticate:', error);
-      return null;
+        console.error('Failed to authenticate:', error);
+        return null;
     } finally {
-      setAuthenticating(false);
+        setAuthenticating(false);
     }
-  };
+    };
 
   // ========== CHAT FUNCTIONS ==========
   const fetchMessages = async () => {

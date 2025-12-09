@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Transaction, PublicKey, Connection } from '@solana/web3.js';
+import { VersionedTransaction, PublicKey, Connection } from '@solana/web3.js';
 import { getAssociatedTokenAddress } from '@solana/spl-token';
+import nacl from 'tweetnacl';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,22 +67,30 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Verification expired' }, { status: 401 });
     }
 
-    // Deserialize and verify the transaction signature
-    const txBytes = Buffer.from(signedTransaction, 'base64');
-    const transaction = Transaction.from(txBytes);
-    
-    // Verify the transaction is signed by the wallet
     const walletPubkey = new PublicKey(wallet);
-    const isValid = transaction.verifySignatures();
+    const txBytes = Buffer.from(signedTransaction, 'base64');
     
-    if (!isValid) {
-      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    // Deserialize as VersionedTransaction
+    const transaction = VersionedTransaction.deserialize(txBytes);
+    
+    // Verify the signer matches the wallet
+    const signerPubkey = transaction.message.staticAccountKeys[0];
+    if (!signerPubkey.equals(walletPubkey)) {
+      return NextResponse.json({ error: 'Signer mismatch' }, { status: 401 });
+    }
+    
+    // Verify signature is valid
+    let isValid = false;
+    if (transaction.signatures.length > 0 && transaction.signatures[0].length === 64) {
+      isValid = nacl.sign.detached.verify(
+        transaction.message.serialize(),
+        transaction.signatures[0],
+        walletPubkey.toBytes()
+      );
     }
 
-    // Check if the signer matches the wallet
-    const signerPubkey = transaction.signatures[0]?.publicKey;
-    if (!signerPubkey || !signerPubkey.equals(walletPubkey)) {
-      return NextResponse.json({ error: 'Signer mismatch' }, { status: 401 });
+    if (!isValid) {
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
     // Verify user holds 10M+ SPT
@@ -100,7 +109,7 @@ export async function POST(request: NextRequest) {
     const sessionToken = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('hex');
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    // Upsert user - create if doesn't exist, update if exists
+    // Upsert user
     const supabase = getSupabase();
     
     const { error } = await supabase

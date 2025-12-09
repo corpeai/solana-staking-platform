@@ -7,6 +7,7 @@ import { getAssociatedTokenAddress, getAccount } from "@solana/spl-token";
 import { ArrowDownUp, Settings, Info, TrendingUp, Zap, ExternalLink } from "lucide-react";
 import { useToast } from "@/components/ToastContainer";
 import TokenSelectModal from "./TokenSelectModal";
+import { useSearchParams } from "next/navigation";
 import { useSound } from '@/hooks/useSound';
 import { executeJupiterSwap, getJupiterQuote } from "@/lib/jupiter-swap";
 
@@ -134,6 +135,7 @@ export default function SwapPage() {
   const { showSuccess, showError, showInfo } = useToast();
 
   const { playSound } = useSound();
+  const searchParams = useSearchParams();
 
   // State
   const [tokens, setTokens] = useState<Token[]>([]);
@@ -264,6 +266,40 @@ export default function SwapPage() {
   useEffect(() => {
     loadTokens();
   }, []);
+
+  // Load token from URL param (for /swap?outputMint=xxx)
+    useEffect(() => {
+      const outputMint = searchParams.get('outputMint');
+      if (outputMint && !loading) {
+        // Check featured tokens first
+        const featured = featuredTokens.find(t => t.address === outputMint);
+        if (featured) {
+          setToToken(featured);
+          return;
+        }
+        
+        // Otherwise fetch token metadata from DexScreener
+        const fetchTokenInfo = async () => {
+          try {
+            const res = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${outputMint}`);
+            const data = await res.json();
+            const pair = data.pairs?.[0];
+            if (pair) {
+              setToToken({
+                address: outputMint,
+                symbol: pair.baseToken.symbol,
+                name: pair.baseToken.name,
+                decimals: pair.baseToken.decimals || 9,
+                logoURI: pair.info?.imageUrl || undefined,
+              });
+            }
+          } catch (e) {
+            console.error("Failed to fetch token info:", e);
+          }
+        };
+        fetchTokenInfo();
+      }
+    }, [searchParams, featuredTokens, loading]);
 
   const loadTokens = async () => {
     setLoading(true);

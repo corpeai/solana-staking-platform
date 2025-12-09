@@ -610,7 +610,7 @@ const WhaleClub: React.FC = () => {
                   <div className="flex items-center gap-2 mb-3"><Trophy className="w-4 h-4" style={{ color: '#fb57ff' }} /><span className="font-semibold text-sm">Leaderboard</span></div>
                   {leaderboard.length > 0 ? (
                     <div className="space-y-2">
-                      {leaderboard.slice(0, 5).map((entry, index) => (
+                      {leaderboard.map((entry, index) => (
                         <div key={entry.wallet} className={`flex items-center gap-3 p-2 rounded-lg ${entry.wallet === publicKey?.toString() ? 'border' : 'bg-white/[0.02]'}`} style={entry.wallet === publicKey?.toString() ? { borderColor: 'rgba(251, 87, 255, 0.3)', background: 'rgba(251, 87, 255, 0.05)' } : {}}>
                           <div className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${index === 0 ? 'bg-yellow-500 text-black' : index === 1 ? 'bg-gray-400 text-black' : index === 2 ? 'bg-amber-700 text-white' : 'bg-white/[0.05] text-gray-400'}`}>{entry.rank}</div>
                           <div className="flex-1 min-w-0">

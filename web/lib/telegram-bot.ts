@@ -382,7 +382,7 @@ Let's see who's leading the pack! 🚀
 *Token:* ${poolData.tokenSymbol}
 *Lock Period:* ${lockPeriodDisplay}
 
-Start staking now! 🚀
+[👉 View Staking Pools](https://stakepoint.app/pools)
       `;
 
       const imageUrl = poolData.tokenLogo || this.fallbackLogoUrl;
@@ -429,7 +429,7 @@ Start staking now! 🚀
 *APR:* ${poolData.apr > 0 ? `${poolData.apr}%` : 'Variable'}
 *Lock Period:* ${lockPeriodDisplay}
 
-Start farming now! 🚜
+[👉 View LP Farms](https://stakepoint.app/lp-pools)
       `;
 
       const imageUrl = poolData.tokenLogo || this.fallbackLogoUrl;
@@ -478,7 +478,7 @@ Start farming now! 🚜
 *Duration:* ${lockPeriodDisplay}
 *Locked by:* \`${shortWallet}\`
 
-Tokens secured! 🛡️
+[👉 View Token Locks](https://stakepoint.app/locks)
       `;
 
       const imageUrl = lockData.tokenLogo || this.fallbackLogoUrl;
@@ -498,4 +498,3 @@ Tokens secured! 🛡️
       console.error('❌ Failed to send lock alert:', error);
     }
   }
-}

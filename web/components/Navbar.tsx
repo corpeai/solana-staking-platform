@@ -57,7 +57,8 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
       try {
         const res = await fetch("/api/pools");
         const data = await res.json();
-        const featured = data.filter((p: Pool) => p.featured && !p.hidden);
+        // Change this line (limit to 5 featured pools)
+        const featured = data.filter((p: Pool) => p.featured && !p.hidden).slice(0, 5);
         setFeaturedPools(featured);
       } catch (error) {
         console.error("Failed to fetch featured pools:", error);
@@ -145,27 +146,27 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
 
       {/* Featured Pools Scrolling Banner - Desktop only */}
       {featuredPools.length > 0 && (
-        <div className="hidden lg:flex flex-1 mx-6 h-8 overflow-hidden relative">
-          <div className="absolute inset-y-0 left-0 w-8 bg-gradient-to-r from-[#060609] to-transparent z-10 pointer-events-none" />
-          <div className="absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[#060609] to-transparent z-10 pointer-events-none" />
+        <div className="hidden lg:flex flex-1 mx-4 h-10 overflow-hidden relative">
+          <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#060609] to-transparent z-10 pointer-events-none" />
+          <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#060609] to-transparent z-10 pointer-events-none" />
           
-          <div className="flex items-center gap-4 animate-marquee whitespace-nowrap">
+          <div className="flex items-center gap-8 animate-marquee whitespace-nowrap">
             {scrollPools.map((pool, idx) => (
               <button
                 key={`${pool.id}-${idx}`}
                 onClick={() => router.push(`/pools?highlight=${pool.id}`)}
-                className="flex items-center gap-2 px-3 py-1 rounded-full bg-white/[0.02] border border-white/[0.05] hover:border-[#fb57ff]/30 hover:bg-white/[0.05] transition-all"
+                className="flex items-center gap-3 px-5 py-2 rounded-full bg-white/[0.03] border border-white/[0.08] hover:border-[#fb57ff]/30 hover:bg-white/[0.06] transition-all"
               >
                 {pool.logo ? (
-                  <img src={pool.logo} alt={pool.symbol} className="w-5 h-5 rounded-full" />
+                  <img src={pool.logo} alt={pool.symbol} className="w-6 h-6 rounded-full" />
                 ) : (
-                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: 'linear-gradient(135deg, rgba(251, 87, 255, 0.2), rgba(251, 87, 255, 0.1))', color: '#fb57ff' }}>
+                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: 'linear-gradient(135deg, rgba(251, 87, 255, 0.2), rgba(251, 87, 255, 0.1))', color: '#fb57ff' }}>
                     {pool.symbol.slice(0, 2)}
                   </div>
                 )}
-                <span className="text-xs font-medium text-gray-300">{pool.symbol}</span>
+                <span className="text-sm font-medium text-white">{pool.symbol}</span>
                 {pool.liveRate && pool.liveRate > 0 && (
-                  <span className="text-xs font-semibold text-green-400">
+                  <span className="text-sm font-semibold text-green-400">
                     {pool.liveRate.toFixed(1)}%
                   </span>
                 )}

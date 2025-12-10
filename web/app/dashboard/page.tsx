@@ -1,6 +1,6 @@
 "use client";
 import { useWallet } from "@solana/wallet-adapter-react";
-import { TrendingUp, Users } from "lucide-react";
+import { TrendingUp, Users, ArrowUpRight, ArrowDownRight, Gift, AlertTriangle, ExternalLink } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { UserStakedPools } from "@/components/UserStakedPools";
@@ -18,11 +18,26 @@ type FeaturedPool = {
   featured: boolean;
 };
 
+type Activity = {
+  id: string;
+  type: string;
+  amount: number;
+  timestamp: string;
+  txSignature?: string;
+  pool?: {
+    name: string;
+    symbol: string;
+    logo?: string;
+  };
+};
+
 export default function Dashboard() {
   const { connected, publicKey } = useWallet();
   const router = useRouter();
   const [featuredPools, setFeaturedPools] = useState<FeaturedPool[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activities, setActivities] = useState<Activity[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
   const [stats, setStats] = useState({
     totalStakers: 0,
     totalValueLocked: 0,
@@ -35,22 +50,14 @@ export default function Dashboard() {
     async function fetchFeaturedPools() {
       try {
         setLoading(true);
-        
-        // Fetch all pools - API already orders by featured first
         const response = await fetch('/api/pools');
-        
         if (!response.ok) throw new Error('Failed to fetch pools');
-        
         const pools = await response.json();
-        
-        // API returns array directly and orders by featured first
-        // Just take first 5 featured pools
         const featured = pools.filter((pool: FeaturedPool) => pool.featured).slice(0, 5);
         setFeaturedPools(featured);
-        
       } catch (error) {
         console.error('Error fetching featured pools:', error);
-        setFeaturedPools([]); // Set empty array on error
+        setFeaturedPools([]);
       } finally {
         setLoading(false);
       }
@@ -64,40 +71,101 @@ export default function Dashboard() {
     async function fetchStats() {
       try {
         setStatsLoading(true);
-        
-        console.log('📊 Fetching platform stats...');
         const response = await fetch('/api/stats');
-        
         if (!response.ok) throw new Error('Failed to fetch stats');
-        
         const data = await response.json();
-        
-        console.log('✅ Stats received:', data);
-        
         setStats({
           totalStakers: data.totalStakers || 0,
           totalValueLocked: data.totalValueLocked || 0,
           totalStakes: data.totalStakes || 0
         });
-        
       } catch (error) {
-        console.error('❌ Error fetching stats:', error);
+        console.error('Error fetching stats:', error);
       } finally {
         setStatsLoading(false);
       }
     }
 
     fetchStats();
-    
-    // Refresh stats every 30 seconds
     const interval = setInterval(fetchStats, 30000);
-    
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch recent activity for connected wallet
+  useEffect(() => {
+    async function fetchActivity() {
+      if (!connected || !publicKey) {
+        setActivities([]);
+        return;
+      }
+
+      try {
+        setActivitiesLoading(true);
+        const response = await fetch(`/api/activity/${publicKey.toString()}?limit=10`);
+        if (!response.ok) throw new Error('Failed to fetch activity');
+        const data = await response.json();
+        setActivities(data || []);
+      } catch (error) {
+        console.error('Error fetching activity:', error);
+        setActivities([]);
+      } finally {
+        setActivitiesLoading(false);
+      }
+    }
+
+    fetchActivity();
+    const interval = setInterval(fetchActivity, 60000);
+    return () => clearInterval(interval);
+  }, [connected, publicKey]);
+
   const handleStakeNow = (poolId: string) => {
-    // Navigate to pools page with the specific pool
     router.push(`/pools?highlight=${poolId}`);
+  };
+
+  const getActivityIcon = (type: string) => {
+    switch (type.toLowerCase()) {
+      case "stake":
+        return <ArrowUpRight className="w-4 h-4 text-green-400" />;
+      case "unstake":
+        return <ArrowDownRight className="w-4 h-4 text-red-400" />;
+      case "claim":
+        return <Gift className="w-4 h-4" style={{ color: '#fb57ff' }} />;
+      case "emergency_unstake":
+        return <AlertTriangle className="w-4 h-4 text-orange-400" />;
+      default:
+        return <ArrowUpRight className="w-4 h-4 text-gray-400" />;
+    }
+  };
+
+  const getActivityLabel = (type: string) => {
+    switch (type.toLowerCase()) {
+      case "stake":
+        return "Staked";
+      case "unstake":
+        return "Unstaked";
+      case "claim":
+        return "Claimed Rewards";
+      case "emergency_unstake":
+        return "Emergency Unstake";
+      default:
+        return "Transaction";
+    }
+  };
+
+  const formatTimeAgo = (timestamp: string) => {
+    const seconds = Math.floor((Date.now() - new Date(timestamp).getTime()) / 1000);
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    return `${days}d ago`;
+  };
+
+  const explorerUrl = (sig: string) => {
+    const cluster = process.env.NEXT_PUBLIC_NETWORK === "mainnet-beta" ? "" : "?cluster=devnet";
+    return `https://solscan.io/tx/${sig}${cluster}`;
   };
 
   return (
@@ -183,10 +251,8 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Stats Grid - Only platform-wide stats */}
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-          
-          {/* Total Value Locked */}
           <div className="bg-white/[0.02] border border-white/[0.05] rounded-lg p-4 sm:p-5 hover:bg-white/[0.04] transition-all">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <div className="text-gray-500 text-xs sm:text-sm">Total Value Locked</div>
@@ -210,7 +276,6 @@ export default function Dashboard() {
             )}
           </div>
 
-          {/* Total Stakers */}
           <div className="bg-white/[0.02] border border-white/[0.05] rounded-lg p-4 sm:p-5 hover:bg-white/[0.04] transition-all">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <div className="text-gray-500 text-xs sm:text-sm">Total Stakers</div>
@@ -232,7 +297,6 @@ export default function Dashboard() {
               </>
             )}
           </div>
-
         </div>
 
         {/* User's Staked Pools Section */}
@@ -243,14 +307,79 @@ export default function Dashboard() {
           <h2 className="text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4">Recent Activity</h2>
           
           {connected ? (
-            <div className="space-y-2 sm:space-y-3">
+            activitiesLoading ? (
+              <div className="space-y-2 sm:space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="bg-white/[0.02] border border-white/[0.05] rounded-lg p-3 sm:p-4 animate-pulse">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-white/[0.05]"></div>
+                      <div className="flex-1">
+                        <div className="h-4 bg-white/[0.05] rounded w-24 mb-2"></div>
+                        <div className="h-3 bg-white/[0.05] rounded w-16"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : activities.length > 0 ? (
+              <div className="space-y-2 sm:space-y-3">
+                {activities.map((activity) => (
+                  <div 
+                    key={activity.id} 
+                    className="bg-white/[0.02] border border-white/[0.05] rounded-lg p-3 sm:p-4 hover:bg-white/[0.04] transition-all"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-white/[0.05] flex items-center justify-center">
+                          {getActivityIcon(activity.type)}
+                        </div>
+                        <div>
+                          <div className="text-white font-semibold text-sm flex items-center gap-2">
+                            {getActivityLabel(activity.type)}
+                            {activity.pool && (
+                              <span className="text-gray-500 font-normal">
+                                • {activity.pool.symbol}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-gray-500 text-xs mt-0.5">
+                            {formatTimeAgo(activity.timestamp)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {activity.amount > 0 && (
+                          <div className="text-right">
+                            <div className="text-sm font-medium text-white">
+                              {activity.amount.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+                            </div>
+                            <div className="text-xs text-gray-500">tokens</div>
+                          </div>
+                        )}
+                        {activity.txSignature && (
+                          <a
+                            href={explorerUrl(activity.txSignature)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-lg hover:bg-white/[0.05] transition-colors"
+                            title="View on Solscan"
+                          >
+                            <ExternalLink className="w-4 h-4 text-gray-400 hover:text-white" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
               <div className="bg-white/[0.02] border border-white/[0.05] rounded-lg p-3 sm:p-4">
                 <div>
                   <div className="text-white font-semibold text-sm">No activity yet</div>
-                  <div className="text-gray-500 text-xs mt-1">Your transactions will appear here</div>
+                  <div className="text-gray-500 text-xs mt-1">Your staking transactions will appear here</div>
                 </div>
               </div>
-            </div>
+            )
           ) : (
             <div className="text-center py-6 sm:py-8">
               <div className="text-sm sm:text-base text-gray-500">Connect your wallet to view activity</div>

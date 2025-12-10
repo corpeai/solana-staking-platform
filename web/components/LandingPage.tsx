@@ -362,6 +362,7 @@ export default function LandingPage() {
                   <Zap className="w-4 h-4" />
                   Start Swapping
                 </button>
+              </div>
 
               <div className="flex flex-wrap gap-8 justify-center lg:justify-start pt-4">
                 {stats.slice(0, 2).map((stat, idx) => (

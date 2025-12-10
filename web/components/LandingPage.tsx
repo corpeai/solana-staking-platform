@@ -756,7 +756,7 @@ export default function LandingPage() {
 
             <div className="text-center">
               <p className="text-xs text-gray-600">
-                Please get im touch before creating a pool if you would like marketing support!
+                Please get in touch before creating a pool if you would like marketing support!
               </p>
             </div>
           </div>

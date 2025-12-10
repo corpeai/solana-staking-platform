@@ -183,30 +183,30 @@ export default function MyPoolsPage() {
   };
 
   // Check user's token balance for deposit
-  const checkTokenBalance = async (tokenMint: string) => {
-    if (!publicKey) return;
+const checkTokenBalance = async (tokenMint: string) => {
+  if (!publicKey) return;
+  
+  try {
+    const tokenMintPubkey = new PublicKey(tokenMint);
     
-    try {
-      const tokenMintPubkey = new PublicKey(tokenMint);
-      const { getAssociatedTokenAddress } = await import('@solana/spl-token');
-      
-      const ata = await getAssociatedTokenAddress(tokenMintPubkey, publicKey);
-      const accountInfo = await connection.getParsedAccountInfo(ata);
-      
-      if (accountInfo.value && 'parsed' in accountInfo.value.data) {
-        const parsed = accountInfo.value.data.parsed.info;
-        const balance = parsed.tokenAmount.amount;
-        const decimals = parsed.tokenAmount.decimals;
-        const readable = (Number(balance) / Math.pow(10, decimals)).toLocaleString();
-        setUserTokenBalance(readable);
-      } else {
-        setUserTokenBalance('0');
-      }
-    } catch (error) {
-      console.error('Error checking balance:', error);
+    // Use getParsedTokenAccountsByOwner with mint filter - works for both SPL and Token-2022
+    const tokenAccounts = await connection.getParsedTokenAccountsByOwner(
+      publicKey,
+      { mint: tokenMintPubkey }
+    );
+    
+    if (tokenAccounts.value.length > 0) {
+      const parsed = tokenAccounts.value[0].account.data.parsed.info;
+      const balance = parsed.tokenAmount.uiAmount || 0;
+      setUserTokenBalance(balance.toLocaleString(undefined, { maximumFractionDigits: 4 }));
+    } else {
       setUserTokenBalance('0');
     }
-  };
+  } catch (error) {
+    console.error('Error checking balance:', error);
+    setUserTokenBalance('0');
+  }
+};
 
   // Open deposit modal
   const openDepositModal = (pool: Pool) => {

@@ -36,7 +36,7 @@ interface TokenAccount {
 }
 
 const RENT_PER_ACCOUNT = 0.00203;
-const ACCOUNTS_PER_TX = 5;
+const ACCOUNTS_PER_TX = 12;
 
 export default function WalletCleanupPage() {
   const { publicKey, sendTransaction } = useWallet();
@@ -241,7 +241,7 @@ export default function WalletCleanupPage() {
         
         // Add compute budget instructions first (Phantom requirement)
         transaction.add(
-          ComputeBudgetProgram.setComputeUnitLimit({ units: 100000 }),
+          ComputeBudgetProgram.setComputeUnitLimit({ units: 200000 }),
           ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 })
         );
         

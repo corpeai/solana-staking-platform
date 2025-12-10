@@ -33,13 +33,38 @@ export default function sitemap(): MetadataRoute.Sitemap {
       url: `${baseUrl}/locks`,
       lastModified: currentDate,
       changeFrequency: 'daily',
-      priority: 0.8,
+      priority: 0.9,
     },
     {
       url: `${baseUrl}/swap`,
       lastModified: currentDate,
       changeFrequency: 'daily',
       priority: 0.8,
+    },
+    // Tools pages - NEW
+    {
+      url: `${baseUrl}/tools`,
+      lastModified: currentDate,
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+    {
+      url: `${baseUrl}/tools/wallet-cleanup`,
+      lastModified: currentDate,
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+    {
+      url: `${baseUrl}/tools/wallet-analyzer`,
+      lastModified: currentDate,
+      changeFrequency: 'weekly',
+      priority: 0.9,
+    },
+    {
+      url: `${baseUrl}/tools/airdrop`,
+      lastModified: currentDate,
+      changeFrequency: 'weekly',
+      priority: 0.9,
     },
     {
       url: `${baseUrl}/whale-club`,

@@ -26,7 +26,7 @@ const tools = [
     href: "/tools/airdrop",
     icon: Send,
     tags: ["Batch transfers", "CSV upload", "Multi-recipient"],
-    available: false,
+    available: true,
   },
 ];
 

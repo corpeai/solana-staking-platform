@@ -146,7 +146,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
 
       {/* Featured Pools Scrolling Banner - Desktop only */}
       {featuredPools.length > 0 && (
-        <div className="hidden lg:flex flex-1 mx-4 h-10 overflow-hidden relative">
+        <div className="hidden lg:flex flex-1 mx-4 h-10 overflow-hidden relative items-center">
           <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[#060609] to-transparent z-10 pointer-events-none" />
           <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[#060609] to-transparent z-10 pointer-events-none" />
           
@@ -155,18 +155,18 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
               <button
                 key={`${pool.id}-${idx}`}
                 onClick={() => router.push(`/pools?highlight=${pool.id}`)}
-                className="flex items-center gap-3 px-5 py-2 rounded-full bg-white/[0.03] border border-white/[0.08] hover:border-[#fb57ff]/30 hover:bg-white/[0.06] transition-all"
+                className="flex items-center justify-center gap-3 h-8 px-5 rounded-full bg-white/[0.03] border border-white/[0.08] hover:border-[#fb57ff]/30 hover:bg-white/[0.06] transition-all"
               >
                 {pool.logo ? (
-                  <img src={pool.logo} alt={pool.symbol} className="w-6 h-6 rounded-full" />
+                  <img src={pool.logo} alt={pool.symbol} className="w-5 h-5 rounded-full flex-shrink-0" />
                 ) : (
-                  <div className="w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold" style={{ background: 'linear-gradient(135deg, rgba(251, 87, 255, 0.2), rgba(251, 87, 255, 0.1))', color: '#fb57ff' }}>
+                  <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0" style={{ background: 'linear-gradient(135deg, rgba(251, 87, 255, 0.2), rgba(251, 87, 255, 0.1))', color: '#fb57ff' }}>
                     {pool.symbol.slice(0, 2)}
                   </div>
                 )}
-                <span className="text-sm font-medium text-white">{pool.symbol}</span>
+                <span className="text-sm font-medium text-white leading-none">{pool.symbol}</span>
                 {pool.liveRate && pool.liveRate > 0 && (
-                  <span className="text-sm font-semibold text-green-400">
+                  <span className="text-sm font-semibold text-green-400 leading-none">
                     {pool.liveRate.toFixed(1)}%
                   </span>
                 )}
